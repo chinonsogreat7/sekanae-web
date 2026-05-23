@@ -1,31 +1,48 @@
 {
   "name": "sekanae-commerce",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "api:dev": "tsx api/src/index.ts",
+    "api:build": "tsc -p tsconfig.api.json",
+    "api:start": "node api/dist/api/src/index.js",
+    "db:migrate": "tsx api/scripts/migrate.ts",
+    "db:seed": "tsx api/scripts/seed-catalog.ts",
+    "smoke": "tsx api/scripts/smoke.ts",
+    "typecheck": "tsc -b && tsc -p tsconfig.api.json --noEmit"
   },
   "dependencies": {
+    "@fastify/cors": "10.0.2",
+    "@fastify/swagger": "^9.7.0",
+    "@fastify/swagger-ui": "^5.2.6",
     "@vitejs/plugin-react": "4.3.4",
-    "vite": "6.3.5",
-    "typescript": "5.8.3",
+    "fastify": "^5.8.5",
+    "lucide-react": "0.468.0",
+    "pg": "^8.20.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-router-dom": "6.30.1",
-    "lucide-react": "0.468.0"
+    "react-router-dom": "^6.30.3",
+    "stripe": "^22.1.1",
+    "typescript": "5.8.3",
+    "vite": "^6.4.2",
+    "zod": "3.24.1"
   },
   "devDependencies": {
+    "@types/node": "22.10.5",
+    "@types/pg": "^8.20.0",
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
     "eslint": "9.30.1",
-    "typescript-eslint": "8.35.1",
     "eslint-plugin-react-hooks": "5.2.0",
     "eslint-plugin-react-refresh": "0.4.20",
-    "globals": "15.15.0"
+    "globals": "15.15.0",
+    "tsx": "^4.22.0",
+    "typescript-eslint": "8.35.1"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

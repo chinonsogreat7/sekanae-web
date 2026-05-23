@@ -1,21 +1,75 @@
 import { ChevronRight, Heart, PackageCheck, Ruler, ShieldCheck, Star } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { getProduct } from "../api/client";
 import { ProductCard } from "../components/ProductCard";
-import { products } from "../data/catalog";
 import { useStore } from "../context/StoreContext";
+import { useCatalog } from "../context/CatalogContext";
+import { type Product } from "../data/catalog";
 import { formatMoney } from "../utils/money";
 
 export function ProductPage() {
   const { slug } = useParams();
   const { currency, addToCart, toggleWishlist, isWishlisted } = useStore();
-  const product = products.find((item) => item.slug === slug) ?? products[0];
-  const [selectedColor, setSelectedColor] = useState(product.colors[0]);
+  const { products, error: catalogError } = useCatalog();
+  const fallbackProduct = products.find((item) => item.slug === slug) ?? products[0];
+  const [apiProduct, setApiProduct] = useState<Product | null>(null);
+  const [isLoadingProduct, setIsLoadingProduct] = useState(Boolean(slug));
+  const [productError, setProductError] = useState<string | null>(null);
+  const product = apiProduct ?? fallbackProduct;
+  const [selectedColor, setSelectedColor] = useState(product?.colors[0] ?? "Default");
   const fallbackImage = "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=1000&q=85";
-  const pairings = products
-    .filter((item) => item.id !== product.id && item.collection === product.collection)
-    .concat(products.filter((item) => item.id !== product.id))
-    .slice(0, 3);
+  const pairings = useMemo(() => {
+    if (!product) return [];
+    return products
+      .filter((item) => item.id !== product.id && item.collection === product.collection)
+      .concat(products.filter((item) => item.id !== product.id))
+      .slice(0, 3);
+  }, [product, products]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    let isCurrent = true;
+    setIsLoadingProduct(true);
+
+    getProduct(slug)
+      .then((nextProduct) => {
+        if (!isCurrent) return;
+        setApiProduct(nextProduct);
+        setProductError(null);
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setApiProduct(null);
+        setProductError("Product details are using saved catalog data while the API is unavailable.");
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setIsLoadingProduct(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    setSelectedColor(product?.colors[0] ?? "Default");
+  }, [product?.id, product?.colors]);
+
+  if (!product) {
+    return (
+      <div className="page section-pad">
+        <div className="empty-state">
+          <h1>Product not found</h1>
+          <p>This piece is no longer available.</p>
+          <Link to="/shop" className="primary-button">Return to shop</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -49,6 +103,8 @@ export function ProductPage() {
         <div className="product-info-panel">
           <p className="microcopy">{product.collection}</p>
           <h1>{product.name}</h1>
+          {(productError || catalogError) && <p className="api-status">{productError ?? catalogError}</p>}
+          {isLoadingProduct && <p className="api-status">Refreshing product details.</p>}
           <div className="rating-row">
             <span><Star size={16} fill="currentColor" /> {product.rating}</span>
             <span>{product.reviews} customer reviews</span>
