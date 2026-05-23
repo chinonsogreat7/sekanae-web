@@ -11,6 +11,9 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://sekanae-api.onrender.com
 
   - type: web
     name: sekanae-api
