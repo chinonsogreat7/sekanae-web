@@ -1891,8 +1891,15 @@ p {
   gap: 12px;
 }
 
-.admin-sidebar .brand-mark {
+.admin-brand {
+  display: block;
   margin-bottom: 30px;
+  color: var(--gold);
+  font-family: var(--serif);
+  font-size: 2.25rem;
+  letter-spacing: 0.24em;
+  line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .admin-sidebar a {
@@ -1907,6 +1914,11 @@ p {
 
 .admin-sidebar a:hover {
   background: rgba(255, 255, 255, 0.09);
+}
+
+.admin-sidebar a.active {
+  background: rgba(183, 137, 65, 0.18);
+  color: #fff;
 }
 
 .admin-main {
@@ -2016,6 +2028,30 @@ p {
   color: #fff;
 }
 
+.admin-button-link,
+.admin-inline-button {
+  min-height: 38px;
+  border: 1px solid var(--black);
+  background: var(--black);
+  color: #fff;
+  padding: 0 14px;
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-inline-button {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 0.68rem;
+}
+
 .admin-table,
 .order-list,
 .content-tasks,
@@ -2091,6 +2127,10 @@ p {
   font-size: 0.88rem;
 }
 
+.admin-status-tight {
+  margin: 4px 0 0;
+}
+
 .admin-table-head,
 .admin-row {
   display: grid;
@@ -2111,7 +2151,8 @@ p {
   font-size: 0.7rem;
 }
 
-.admin-row span:first-child {
+.admin-row span:first-child,
+.admin-row a:first-child {
   color: var(--espresso);
   display: flex;
   align-items: center;
@@ -2167,6 +2208,11 @@ p {
 .admin-panel button.admin-danger {
   border-color: #8d3428;
   background: #8d3428;
+}
+
+.admin-product-form-standalone {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .admin-product-form {
@@ -2269,6 +2315,95 @@ p {
 
 .admin-order-items {
   padding: 14px 0;
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 18px;
+}
+
+.admin-pagination span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.admin-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.admin-product-detail {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-product-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.55fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.admin-product-detail-grid > img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.admin-product-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-product-facts span {
+  border: 1px solid var(--line);
+  padding: 14px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.admin-product-facts strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--espresso);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-product-copy {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-product-copy dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-product-copy dl div {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.admin-product-copy dt {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-product-copy dd {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
 }
 
 .order-list div {
@@ -2774,7 +2909,10 @@ p {
 
   .admin-form-grid,
   .admin-form-grid-compact,
-  .admin-order-summary {
+  .admin-order-summary,
+  .admin-product-detail-grid,
+  .admin-product-facts,
+  .admin-product-copy dl {
     grid-template-columns: 1fr;
   }
 

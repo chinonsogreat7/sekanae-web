@@ -38,8 +38,8 @@ export default function App() {
           <Route path="/shipping" element={<ShippingPage />} />
           <Route path="/returns" element={<ReturnsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/sekanae-studio" element={<AdminPage />} />
+          <Route path="/admin/*" element={<AdminPage />} />
+          <Route path="/sekanae-studio/*" element={<AdminPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
