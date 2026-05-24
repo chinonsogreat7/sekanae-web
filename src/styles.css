@@ -481,19 +481,27 @@ button {
   padding: 24px 0;
 }
 
-.drawer-links a {
+.drawer-links a,
+.drawer-links button {
   min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: transparent;
   color: var(--espresso);
   font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  padding: 0;
+  text-align: left;
 }
 
-.drawer-links a::after {
+.drawer-links a::after,
+.drawer-links button::after {
   content: "";
   width: 7px;
   height: 7px;
@@ -503,11 +511,13 @@ button {
   transition: transform var(--motion-fast) ease;
 }
 
-.drawer-links a:hover {
+.drawer-links a:hover,
+.drawer-links button:hover {
   color: var(--gold);
 }
 
-.drawer-links a:hover::after {
+.drawer-links a:hover::after,
+.drawer-links button:hover::after {
   transform: translateX(4px) rotate(45deg);
 }
 
@@ -1193,6 +1203,58 @@ p {
   padding: clamp(26px, 5vw, 54px);
 }
 
+.account-gate-backdrop {
+  z-index: 1200;
+}
+
+.account-gate-panel {
+  position: relative;
+  width: min(460px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: clamp(26px, 5vw, 44px);
+  box-shadow: var(--shadow);
+  animation: modal-rise var(--motion-medium) var(--ease-luxury) both;
+}
+
+.account-gate-panel h2 {
+  margin-bottom: 10px;
+  font-size: clamp(2rem, 7vw, 3.2rem);
+}
+
+.account-gate-panel p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.account-gate-panel form {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.account-gate-panel label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.account-gate-panel input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.account-gate-panel .primary-button {
+  width: 100%;
+  margin-top: 6px;
+}
+
 .modal-close {
   position: absolute;
   top: 16px;
@@ -1582,6 +1644,15 @@ p {
 .summary-card .primary-button {
   width: 100%;
   margin-top: 18px;
+}
+
+.checkout-gate {
+  margin-top: 18px;
+}
+
+.checkout-gate .primary-button {
+  width: min(260px, 100%);
+  margin: 18px auto 0;
 }
 
 .empty-state,

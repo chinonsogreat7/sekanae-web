@@ -7,7 +7,16 @@ import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
 
 export function CheckoutPage() {
-  const { cartProducts, currency, exchangeRates, defaultShippingAmount, subtotal, clearCart } = useStore();
+  const {
+    cartProducts,
+    currency,
+    exchangeRates,
+    defaultShippingAmount,
+    subtotal,
+    clearCart,
+    customerAccount,
+    openAccountPrompt,
+  } = useStore();
   const [isComplete, setIsComplete] = useState(false);
   const shipping = subtotal > 500 ? 0 : defaultShippingAmount;
 
@@ -46,13 +55,28 @@ export function CheckoutPage() {
             <span><Truck size={16} /> International shipping</span>
             <span><CreditCard size={16} /> Card, PayPal, and bank options</span>
           </div>
+          {cartProducts.length === 0 ? (
+            <div className="empty-state checkout-gate">
+              <h2>Your cart is quiet.</h2>
+              <p>Add a piece before continuing to checkout.</p>
+              <Link to="/shop" className="primary-button">Shop the collection</Link>
+            </div>
+          ) : !customerAccount ? (
+            <div className="empty-state checkout-gate">
+              <h2>Create an account to checkout.</h2>
+              <p>Your cart is saved in this browser. Create an account before placing an order so we can keep your order history and delivery details together.</p>
+              <button className="primary-button" type="button" onClick={() => openAccountPrompt("Create an account to continue to checkout.")}>
+                Create account
+              </button>
+            </div>
+          ) : (
           <form onSubmit={(event) => {
             event.preventDefault();
             clearCart();
             setIsComplete(true);
           }}>
             <div className="form-grid">
-              <label>Email<input type="email" required placeholder="you@example.com" /></label>
+              <label>Email<input type="email" required placeholder="you@example.com" defaultValue={customerAccount.email} /></label>
               <CustomSelect
                 label="Country / Region"
                 name="country"
@@ -80,6 +104,7 @@ export function CheckoutPage() {
             </div>
             <button className="primary-button" type="submit">Place secure order</button>
           </form>
+          )}
         </section>
         <aside className="summary-card">
           <h2>Order Summary</h2>

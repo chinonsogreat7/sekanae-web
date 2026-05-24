@@ -1,4 +1,4 @@
-import { ChevronDown, Heart, Menu, Search, ShoppingBag, X } from "lucide-react";
+import { ChevronDown, Heart, Menu, Search, ShoppingBag, User, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { currencies, type CurrencyCode } from "../data/catalog";
@@ -14,7 +14,7 @@ const navItems = [
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
-  const { currency, setCurrency, cartCount, wishlist } = useStore();
+  const { currency, setCurrency, cartCount, wishlist, customerAccount, openAccountPrompt, signOutCustomer } = useStore();
   const location = useLocation();
 
   function isActiveNavItem(path: string) {
@@ -103,14 +103,40 @@ export function Header() {
                 </div>
               )}
             </div>
-            <Link className="icon-button count-button" to="/shop" aria-label="Wishlist">
+            <button
+              className="icon-button count-button"
+              type="button"
+              aria-label="Wishlist"
+              onClick={() => {
+                if (!customerAccount) {
+                  openAccountPrompt("Create an account to save and view your wishlist.");
+                  return;
+                }
+              }}
+            >
               <Heart size={18} />
               <span>{wishlist.length}</span>
-            </Link>
+            </button>
             <Link className="icon-button count-button" to="/cart" aria-label="Cart">
               <ShoppingBag size={18} />
               <span>{cartCount}</span>
             </Link>
+            <button
+              className="icon-button account-button"
+              type="button"
+              aria-label={customerAccount ? "Sign out of account" : "Create account"}
+              title={customerAccount ? `Signed in as ${customerAccount.email}` : "Create account"}
+              onClick={() => {
+                if (customerAccount) {
+                  signOutCustomer();
+                  return;
+                }
+
+                openAccountPrompt("Create an account to save your wishlist and continue checkout.");
+              }}
+            >
+              <User size={18} />
+            </button>
           </div>
         </nav>
       </header>
@@ -147,6 +173,19 @@ export function Header() {
               <Link to="/bridal" onClick={() => setIsOpen(false)}>
                 Bridal Atelier
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  if (customerAccount) {
+                    signOutCustomer();
+                    return;
+                  }
+                  openAccountPrompt("Create an account to save your wishlist and continue checkout.");
+                }}
+              >
+                {customerAccount ? "Sign out" : "Create account"}
+              </button>
             </div>
             <div className="drawer-note">
               <p>Designed for every destination.</p>
