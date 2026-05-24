@@ -2,7 +2,7 @@ services:
   - type: web
     name: sekanae-web
     runtime: static
-    autoDeployTrigger: off
+    autoDeployTrigger: commit
     domains:
       - sekanae.co
       - www.sekanae.co
@@ -20,7 +20,7 @@ services:
     name: sekanae-api
     runtime: node
     plan: free
-    autoDeployTrigger: off
+    autoDeployTrigger: commit
     buildCommand: npm ci && npm run api:build
     preDeployCommand: npm run db:migrate && npm run db:seed
     startCommand: npm run api:start

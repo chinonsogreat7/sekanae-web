@@ -1,0 +1,28 @@
+import { mkdir, copyFile } from "node:fs/promises";
+import { join } from "node:path";
+
+const distDir = new URL("../dist/", import.meta.url);
+const indexPath = new URL("index.html", distDir);
+const routePaths = [
+  "admin",
+  "sekanae-studio",
+  "shop",
+  "collections",
+  "lookbook",
+  "about",
+  "cart",
+  "checkout",
+  "client-care",
+  "bridal",
+  "shipping",
+  "returns",
+  "privacy",
+];
+
+await copyFile(indexPath, new URL("404.html", distDir));
+
+await Promise.all(routePaths.map(async (routePath) => {
+  const routeDir = join(distDir.pathname, routePath);
+  await mkdir(routeDir, { recursive: true });
+  await copyFile(indexPath, join(routeDir, "index.html"));
+}));
