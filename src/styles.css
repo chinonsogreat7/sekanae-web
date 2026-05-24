@@ -2180,7 +2180,8 @@ p {
 
 .admin-product-table .admin-table-head,
 .admin-product-table .admin-row {
-  grid-template-columns: minmax(220px, 1.8fr) minmax(130px, 0.8fr) minmax(190px, 1fr) minmax(210px, 1.1fr);
+  grid-template-columns: minmax(360px, 1.4fr) minmax(170px, 0.5fr) minmax(270px, 0.55fr) minmax(390px, 0.7fr);
+  gap: 18px;
 }
 
 .admin-customer-table .admin-table-head,
@@ -2213,11 +2214,30 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.admin-product-table .admin-row-actions {
+  justify-content: flex-start;
+}
+
+.admin-row a.admin-inline-button,
+.admin-row a.admin-inline-button:visited,
+.admin-row a.admin-inline-button:hover {
+  color: #fff;
+}
+
+.admin-row-actions .admin-inline-button,
+.admin-row-actions button,
+.admin-stock-control button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .admin-stock-control input {
-  width: 82px;
+  width: 94px;
+  flex: 0 0 94px;
   min-height: 38px;
   padding: 0 10px;
 }
@@ -3131,6 +3151,11 @@ p {
   .admin-table-head,
   .admin-row {
     min-width: 720px;
+  }
+
+  .admin-product-table .admin-table-head,
+  .admin-product-table .admin-row {
+    min-width: 1280px;
   }
 
   .admin-form-grid,
