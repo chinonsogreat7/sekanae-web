@@ -9,7 +9,7 @@ type QuickViewProps = {
 };
 
 export function QuickView({ product, onClose }: QuickViewProps) {
-  const { currency, addToCart } = useStore();
+  const { currency, exchangeRates, addToCart } = useStore();
 
   if (!product) {
     return null;
@@ -25,7 +25,7 @@ export function QuickView({ product, onClose }: QuickViewProps) {
         <div>
           <p className="microcopy">{product.collection}</p>
           <h2>{product.name}</h2>
-          <p className="price-line">{formatMoney(product.price, currency)}</p>
+          <p className="price-line">{formatMoney(product.price, currency, exchangeRates)}</p>
           <p>{product.description}</p>
           <dl className="detail-list">
             <div>

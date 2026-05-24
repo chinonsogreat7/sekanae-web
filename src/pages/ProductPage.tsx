@@ -8,10 +8,11 @@ import { useStore } from "../context/StoreContext";
 import { useCatalog } from "../context/CatalogContext";
 import { type Product } from "../data/catalog";
 import { formatMoney } from "../utils/money";
+import { getSwatchClassName, getSwatchStyle } from "../utils/product-display";
 
 export function ProductPage() {
   const { slug } = useParams();
-  const { currency, addToCart, toggleWishlist, isWishlisted } = useStore();
+  const { currency, exchangeRates, addToCart, toggleWishlist, isWishlisted } = useStore();
   const { products, error: catalogError } = useCatalog();
   const fallbackProduct = products.find((item) => item.slug === slug) ?? products[0];
   const [apiProduct, setApiProduct] = useState<Product | null>(null);
@@ -115,7 +116,7 @@ export function ProductPage() {
             <span><Star size={16} fill="currentColor" /> {product.rating}</span>
             <span>{product.reviews} customer reviews</span>
           </div>
-          <p className="product-price">{formatMoney(product.price, currency)}</p>
+          <p className="product-price">{formatMoney(product.price, currency, exchangeRates)}</p>
           <p>{product.description}</p>
           <div className="color-row">
             {product.colors.map((colorName) => (
@@ -125,7 +126,7 @@ export function ProductPage() {
                 aria-pressed={selectedColor === colorName}
                 onClick={() => setSelectedColor(colorName)}
               >
-                <span className={`swatch swatch-${colorName.toLowerCase().replaceAll(" ", "-")}`} />
+                <span className={getSwatchClassName(colorName)} style={getSwatchStyle(colorName)} />
                 {colorName}
               </button>
             ))}

@@ -6,6 +6,7 @@ export type StoreSettings = {
   defaultShippingAmount: number;
   vatRate: number;
   vatIncluded: boolean;
+  exchangeRates: Record<string, number>;
   storeContactEmail?: string;
   apiPublicUrl: string;
   webOrigin: string;
@@ -34,6 +35,10 @@ export async function getStoreSettingsFromDatabase(defaults: StoreSettings): Pro
   return {
     ...defaults,
     ...row.value,
+    exchangeRates: {
+      ...defaults.exchangeRates,
+      ...row.value.exchangeRates,
+    },
     updatedAt: row.updated_at.toISOString(),
     updatedBy: row.updated_by ?? undefined,
   };

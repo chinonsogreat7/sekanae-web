@@ -1,13 +1,6 @@
 export type CurrencyCode = "USD" | "GBP" | "EUR" | "NGN" | "AED";
 
-export type ProductCategory =
-  | "Jewelry"
-  | "Handbags"
-  | "Scarves"
-  | "Sunglasses"
-  | "Leather Goods"
-  | "Travel Accessories"
-  | "Gift Shop";
+export type ProductCategory = string;
 
 export type Product = {
   id: string;
@@ -30,6 +23,7 @@ export type Product = {
   rating: number;
   reviews: number;
   stock: number;
+  tags?: string[];
   isNew?: boolean;
   isBridalPreview?: boolean;
 };
@@ -41,6 +35,8 @@ export type Collection = {
   image: string;
   cta: string;
 };
+
+export const baseCurrency: CurrencyCode = "USD";
 
 export const currencies: Record<CurrencyCode, { symbol: string; rate: number; label: string }> = {
   USD: { symbol: "$", rate: 1, label: "USD" },

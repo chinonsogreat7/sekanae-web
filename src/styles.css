@@ -2325,6 +2325,132 @@ p {
   font-size: 0.84rem;
 }
 
+.admin-control-group {
+  display: grid;
+  gap: 10px;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-color-editor,
+.admin-tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-color-row {
+  display: grid;
+  grid-template-columns: 28px 44px minmax(72px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.admin-color-row input[type="color"] {
+  width: 42px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.admin-color-row strong {
+  font-size: 0.76rem;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.admin-color-row button,
+.admin-tag-picker button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 0.7rem;
+}
+
+.admin-tag-picker button.is-selected {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #fff;
+}
+
+.admin-inline-swatches {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.admin-inline-swatches .swatch {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-media-upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-media-upload span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+}
+
+.admin-upload-button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff !important;
+  cursor: pointer;
+  font-size: 0.74rem !important;
+  font-weight: 800;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase;
+}
+
+.admin-upload-button input {
+  display: none;
+}
+
+.admin-image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.admin-image-preview-grid figure {
+  margin: 0;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.admin-image-preview-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.admin-image-preview-grid button {
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.68rem;
+}
+
 .admin-order-list div {
   grid-template-columns: 0.7fr 1.2fr 0.8fr 0.8fr auto;
 }

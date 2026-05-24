@@ -2,9 +2,10 @@ import { Link } from "react-router-dom";
 import { PageMeta } from "../components/PageMeta";
 import { ProductCard } from "../components/ProductCard";
 import { products } from "../data/catalog";
+import { getProductTags } from "../utils/product-display";
 
 export function BridalPage() {
-  const bridalProducts = products.filter((product) => product.isBridalPreview);
+  const bridalProducts = products.filter((product) => getProductTags(product).some((tag) => tag.toLowerCase() === "bridal preview"));
 
   return (
     <div className="page">

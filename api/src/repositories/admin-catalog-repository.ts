@@ -14,6 +14,9 @@ type CollectionWrite = Collection & {
 export async function upsertProductInDatabase(product: ProductWrite): Promise<Product> {
   const pool = getPool();
   const client = await pool.connect();
+  const tags = product.tags ?? [];
+  const isNew = product.isNew || tags.some((tag) => tag.toLowerCase() === "new arrival");
+  const isBridalPreview = product.isBridalPreview || tags.some((tag) => tag.toLowerCase() === "bridal preview");
 
   try {
     await client.query("begin");
@@ -74,8 +77,8 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
         product.details.shipping,
         product.rating,
         product.reviews,
-        Boolean(product.isNew),
-        Boolean(product.isBridalPreview),
+        Boolean(isNew),
+        Boolean(isBridalPreview),
         true,
       ],
     );
@@ -83,6 +86,7 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
     await client.query("delete from product_images where product_id = $1", [product.id]);
     await client.query("delete from product_colors where product_id = $1", [product.id]);
     await client.query("delete from product_occasions where product_id = $1", [product.id]);
+    await client.query("delete from product_tags where product_id = $1", [product.id]);
 
     for (const [index, image] of product.images.entries()) {
       await client.query(
@@ -111,6 +115,16 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
           values ($1, $2, $3)
         `,
         [product.id, occasion, index],
+      );
+    }
+
+    for (const [index, tag] of tags.entries()) {
+      await client.query(
+        `
+          insert into product_tags (product_id, tag, sort_order)
+          values ($1, $2, $3)
+        `,
+        [product.id, tag, index],
       );
     }
 

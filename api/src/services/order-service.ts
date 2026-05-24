@@ -34,6 +34,7 @@ export type CreateOrderRequest = {
   shippingAddress: AddressInput;
   billingAddress?: AddressInput;
   items: CartValidationInput["items"];
+  currency?: CurrencyCode;
   notes?: string;
   marketingOptIn?: boolean;
 };
@@ -117,7 +118,7 @@ export async function createOrder(request: CreateOrderRequest): Promise<Order> {
     throw new OrderServiceError("DATABASE_REQUIRED", "Order APIs require DATABASE_URL because orders must be persisted.", 503);
   }
 
-  const cart = await validateCart({ items: request.items });
+  const cart = await validateCart({ items: request.items, currency: request.currency });
 
   if (!cart.canCheckout) {
     throw new OrderServiceError(
@@ -128,7 +129,7 @@ export async function createOrder(request: CreateOrderRequest): Promise<Order> {
     );
   }
 
-  const pricing = calculateOrderPricing(cart.subtotal);
+  const pricing = await calculateOrderPricing(cart.subtotal, cart.currency);
 
   const order = await createOrderInDatabase({
     customer: request.customer,

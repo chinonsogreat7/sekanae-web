@@ -5,9 +5,10 @@ import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
 import { collections, products } from "../data/catalog";
 import { journalPosts } from "../data/editorial";
+import { getProductTags } from "../utils/product-display";
 
 export function HomePage() {
-  const newArrivals = products.filter((product) => product.isNew || product.isBridalPreview).slice(0, 5);
+  const newArrivals = products.filter((product) => getProductTags(product).length).slice(0, 5);
 
   return (
     <div className="page boutique-home">

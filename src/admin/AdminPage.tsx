@@ -19,26 +19,16 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getProducts } from "../api/client";
 import { getApiBaseUrl } from "../api/config";
-import { products as fallbackProducts, type Collection, type CurrencyCode, type Product, type ProductCategory } from "../data/catalog";
-import { formatMoney } from "../utils/money";
+import { categories as fallbackCategories, products as fallbackProducts, type Collection, type CurrencyCode, type Product } from "../data/catalog";
+import { defaultExchangeRates, formatCurrencyAmount, formatMoney, type ExchangeRates } from "../utils/money";
 
 const apiBaseUrl = getApiBaseUrl();
 const adminTokenStorageKey = "sekanae_admin_token";
 const productsPerPage = 8;
-
-const productCategories: ProductCategory[] = [
-  "Jewelry",
-  "Handbags",
-  "Scarves",
-  "Sunglasses",
-  "Leather Goods",
-  "Travel Accessories",
-  "Gift Shop",
-];
 
 const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
@@ -73,7 +63,7 @@ type ProductDraft = {
   id: string;
   slug: string;
   name: string;
-  category: ProductCategory;
+  category: string;
   collection: string;
   price: string;
   colors: string;
@@ -90,6 +80,7 @@ type ProductDraft = {
   stock: string;
   isNew: boolean;
   isBridalPreview: boolean;
+  tags: string;
 };
 
 type Address = {
@@ -211,6 +202,7 @@ type StoreSettings = {
   defaultShippingAmount: number;
   vatRate: number;
   vatIncluded: boolean;
+  exchangeRates: ExchangeRates;
   storeContactEmail?: string;
   apiPublicUrl: string;
   webOrigin: string;
@@ -222,6 +214,7 @@ type SettingsHealth = {
   database: boolean;
   stripe: boolean;
   email: boolean;
+  media: boolean;
   adminEmail: boolean;
   apiPublicUrl: string;
   webOrigin: string;
@@ -254,12 +247,33 @@ type ApiDataPayload<TData> = ApiPayload<TData> & {
   data: TData;
 };
 
+type CloudinarySignature = {
+  cloudName: string;
+  apiKey: string;
+  folder: string;
+  timestamp: number;
+  signature: string;
+  uploadUrl: string;
+};
+
+type CloudinaryUploadResponse = {
+  secure_url?: string;
+  error?: {
+    message?: string;
+  };
+};
+
 function slugify(value: string) {
   return value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function productIdFromName(value: string) {
+  const slug = slugify(value);
+  return slug ? `p-${slug}` : "";
 }
 
 function parseList(value: string) {
@@ -269,9 +283,25 @@ function parseList(value: string) {
     .filter(Boolean);
 }
 
+function productTags(product: Product) {
+  const tags = product.tags ?? [];
+  return tags.length ? tags : [
+    ...(product.isNew ? ["New arrival"] : []),
+    ...(product.isBridalPreview ? ["Bridal preview"] : []),
+  ];
+}
+
+function colorSwatchStyle(color: string) {
+  return color.startsWith("#") ? { background: color } : undefined;
+}
+
+function colorSwatchClass(color: string) {
+  return color.startsWith("#") ? "swatch" : `swatch swatch-${color.toLowerCase().replaceAll(" ", "-")}`;
+}
+
 function createProductDraft(): ProductDraft {
   return {
-    id: `p-${Date.now().toString(36)}`,
+    id: "",
     slug: "",
     name: "",
     category: "Jewelry",
@@ -291,6 +321,7 @@ function createProductDraft(): ProductDraft {
     stock: "0",
     isNew: false,
     isBridalPreview: false,
+    tags: "",
   };
 }
 
@@ -334,12 +365,15 @@ function productToDraft(product: Product): ProductDraft {
     stock: String(product.stock),
     isNew: Boolean(product.isNew),
     isBridalPreview: Boolean(product.isBridalPreview),
+    tags: productTags(product).join(", "),
   };
 }
 
 function draftToProduct(draft: ProductDraft): Product {
+  const tags = parseList(draft.tags);
+
   return {
-    id: draft.id.trim(),
+    id: draft.id.trim() || productIdFromName(draft.name),
     slug: draft.slug.trim() || slugify(draft.name),
     name: draft.name.trim(),
     category: draft.category,
@@ -359,8 +393,9 @@ function draftToProduct(draft: ProductDraft): Product {
     rating: Number(draft.rating),
     reviews: Number(draft.reviews),
     stock: Number(draft.stock),
-    isNew: draft.isNew || undefined,
-    isBridalPreview: draft.isBridalPreview || undefined,
+    tags,
+    isNew: draft.isNew || tags.includes("New arrival") || undefined,
+    isBridalPreview: draft.isBridalPreview || tags.includes("Bridal preview") || undefined,
   };
 }
 
@@ -443,6 +478,7 @@ export function AdminPage() {
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
   const [productPage, setProductPage] = useState(1);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -492,6 +528,19 @@ export function AdminPage() {
     const firstProduct = (productPage - 1) * productsPerPage;
     return adminProducts.slice(firstProduct, firstProduct + productsPerPage);
   }, [adminProducts, productPage]);
+  const categoryOptions = useMemo(
+    () => [...new Set([...fallbackCategories, ...adminProducts.map((product) => product.category), productDraft.category].filter(Boolean))].sort(),
+    [adminProducts, productDraft.category],
+  );
+  const tagOptions = useMemo(
+    () => [...new Set([
+      "New arrival",
+      "Bridal preview",
+      ...adminProducts.flatMap((product) => productTags(product)),
+      ...parseList(productDraft.tags),
+    ].filter(Boolean))].sort(),
+    [adminProducts, productDraft.tags],
+  );
 
   useEffect(() => {
     const savedToken = window.sessionStorage.getItem(adminTokenStorageKey);
@@ -784,6 +833,116 @@ export function AdminPage() {
     }
   }
 
+  function updateProductName(value: string) {
+    setProductDraft((current) => {
+      const generatedSlug = slugify(value);
+      const shouldRefreshGeneratedSlug = !current.slug || current.slug === slugify(current.name);
+      const shouldRefreshGeneratedId = !current.id || current.id === productIdFromName(current.name);
+
+      return {
+        ...current,
+        name: value,
+        slug: shouldRefreshGeneratedSlug ? generatedSlug : current.slug,
+        id: shouldRefreshGeneratedId ? productIdFromName(value) : current.id,
+      };
+    });
+  }
+
+  function updateProductColor(index: number, value: string) {
+    const colors = parseList(productDraft.colors);
+    colors[index] = value;
+    setProductDraft((current) => ({ ...current, colors: colors.join(", ") }));
+  }
+
+  function addProductColor() {
+    const colors = parseList(productDraft.colors);
+    setProductDraft((current) => ({ ...current, colors: [...colors, "#000000"].join(", ") }));
+  }
+
+  function removeProductColor(index: number) {
+    const colors = parseList(productDraft.colors).filter((_, colorIndex) => colorIndex !== index);
+    setProductDraft((current) => ({ ...current, colors: colors.join(", ") }));
+  }
+
+  function toggleProductTag(tag: string) {
+    const tags = parseList(productDraft.tags);
+    const nextTags = tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag];
+
+    setProductDraft((current) => ({
+      ...current,
+      tags: nextTags.join(", "),
+      isNew: nextTags.includes("New arrival"),
+      isBridalPreview: nextTags.includes("Bridal preview"),
+    }));
+  }
+
+  function addProductTag() {
+    const tag = window.prompt("Tag name");
+
+    if (!tag?.trim()) {
+      return;
+    }
+
+    const tags = parseList(productDraft.tags);
+    const nextTags = [...new Set([...tags, tag.trim()])];
+    setProductDraft((current) => ({ ...current, tags: nextTags.join(", ") }));
+  }
+
+  async function uploadProductImages(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+
+    if (!files.length) {
+      return;
+    }
+
+    if (!adminToken) {
+      setProductMessage("Sign in again to upload images.");
+      return;
+    }
+
+    setIsUploadingImages(true);
+    setProductMessage(null);
+
+    try {
+      const signaturePayload = await readAdmin<CloudinarySignature>("/api/admin/media/cloudinary-signature", {
+        method: "POST",
+      });
+      const uploadedUrls: string[] = [];
+
+      for (const file of files) {
+        const body = new FormData();
+        body.append("file", file);
+        body.append("api_key", signaturePayload.data.apiKey);
+        body.append("timestamp", String(signaturePayload.data.timestamp));
+        body.append("folder", signaturePayload.data.folder);
+        body.append("signature", signaturePayload.data.signature);
+
+        const response = await fetch(signaturePayload.data.uploadUrl, {
+          method: "POST",
+          body,
+        });
+        const payload = await response.json() as CloudinaryUploadResponse;
+
+        if (!response.ok || !payload.secure_url) {
+          throw new Error(payload.error?.message ?? `Image upload failed for ${file.name}.`);
+        }
+
+        uploadedUrls.push(payload.secure_url);
+      }
+
+      setProductDraft((current) => ({
+        ...current,
+        images: [...parseList(current.images), ...uploadedUrls].join("\n"),
+      }));
+      setProductMessage(`${uploadedUrls.length} image${uploadedUrls.length === 1 ? "" : "s"} uploaded.`);
+    } catch (error) {
+      setProductMessage(error instanceof Error ? error.message : "Image upload failed.");
+    } finally {
+      setIsUploadingImages(false);
+    }
+  }
+
   async function updateInventory(productId: string) {
     const quantity = Number(inventoryDrafts[productId]);
 
@@ -1016,7 +1175,13 @@ export function AdminPage() {
         readAdmin<StoreSettings>("/api/admin/settings"),
         readAdmin<SettingsHealth>("/api/admin/settings/health"),
       ]);
-      setSettingsDraft(settingsPayload.data);
+      setSettingsDraft({
+        ...settingsPayload.data,
+        exchangeRates: {
+          ...defaultExchangeRates,
+          ...settingsPayload.data.exchangeRates,
+        },
+      });
       setSettingsHealth(healthPayload.data);
       setSettingsMessage(null);
     } catch (error) {
@@ -1041,6 +1206,10 @@ export function AdminPage() {
           defaultMarketCountry: settingsDraft.defaultMarketCountry.toUpperCase(),
           defaultShippingAmount: Number(settingsDraft.defaultShippingAmount),
           vatRate: Number(settingsDraft.vatRate),
+          exchangeRates: Object.fromEntries(currencyOptions.map((currency) => [
+            currency,
+            Number(settingsDraft.exchangeRates?.[currency] ?? defaultExchangeRates[currency]),
+          ])),
           storeContactEmail: settingsDraft.storeContactEmail || undefined,
         }),
       });
@@ -1151,7 +1320,7 @@ export function AdminPage() {
                     <strong>{order.customerName}</strong>
                     <small>{order.customerEmail}</small>
                   </span>
-                  <span>{formatMoney(order.total, order.currency)}</span>
+                  <span>{formatCurrencyAmount(order.total, order.currency)}</span>
                   <em>{order.status}</em>
                 </button>
               ))}
@@ -1294,8 +1463,16 @@ export function AdminPage() {
             <span><strong>Stock</strong>{selectedProduct.stock}</span>
             <span><strong>Material</strong>{selectedProduct.material}</span>
             <span><strong>Rating</strong>{selectedProduct.rating} / 5 ({selectedProduct.reviews} reviews)</span>
-            <span><strong>Colors</strong>{selectedProduct.colors.join(", ")}</span>
+            <span>
+              <strong>Colors</strong>
+              <span className="admin-inline-swatches">
+                {selectedProduct.colors.map((color) => (
+                  <i key={color} className={colorSwatchClass(color)} style={colorSwatchStyle(color)} title={color} />
+                ))}
+              </span>
+            </span>
             <span><strong>Occasions</strong>{selectedProduct.occasion.join(", ")}</span>
+            <span><strong>Tags</strong>{productTags(selectedProduct).join(", ") || "-"}</span>
           </div>
         </div>
         <div className="admin-product-copy">
@@ -1325,7 +1502,8 @@ export function AdminPage() {
               Product ID
               <input
                 value={productDraft.id}
-                onChange={(event) => setProductDraft((current) => ({ ...current, id: event.target.value }))}
+                readOnly
+                placeholder="Generated from product name"
                 required
               />
             </label>
@@ -1333,35 +1511,35 @@ export function AdminPage() {
               Slug
               <input
                 value={productDraft.slug}
-                onChange={(event) => setProductDraft((current) => ({ ...current, slug: event.target.value }))}
-                placeholder="aure-line-gold-hoops"
+                readOnly
+                placeholder="Generated from product name"
               />
             </label>
             <label>
               Product name
               <input
                 value={productDraft.name}
-                onChange={(event) => setProductDraft((current) => ({
-                  ...current,
-                  name: event.target.value,
-                  slug: current.slug ? current.slug : slugify(event.target.value),
-                }))}
+                onChange={(event) => updateProductName(event.target.value)}
                 required
               />
             </label>
             <label>
               Category
-              <select
+              <input
+                list="admin-product-categories"
                 value={productDraft.category}
                 onChange={(event) => setProductDraft((current) => ({
                   ...current,
-                  category: event.target.value as ProductCategory,
+                  category: event.target.value,
                 }))}
-              >
-                {productCategories.map((category) => (
+                placeholder="Choose or type a new category"
+                required
+              />
+              <datalist id="admin-product-categories">
+                {categoryOptions.map((category) => (
                   <option key={category} value={category}>{category}</option>
                 ))}
-              </select>
+              </datalist>
             </label>
             <label>
               Collection
@@ -1372,7 +1550,7 @@ export function AdminPage() {
               />
             </label>
             <label>
-              Price
+              Base price (USD)
               <input
                 type="number"
                 min="0"
@@ -1401,15 +1579,27 @@ export function AdminPage() {
                 required
               />
             </label>
-            <label>
+            <div className="admin-field-wide admin-control-group">
               Colors
-              <input
-                value={productDraft.colors}
-                onChange={(event) => setProductDraft((current) => ({ ...current, colors: event.target.value }))}
-                placeholder="Gold, Ivory, Black"
-                required
-              />
-            </label>
+              <div className="admin-color-editor">
+                {(parseList(productDraft.colors).length ? parseList(productDraft.colors) : ["#000000"]).map((color, index) => (
+                  <div className="admin-color-row" key={`${color}-${index}`}>
+                    <span className={colorSwatchClass(color)} style={colorSwatchStyle(color)} />
+                    <input
+                      type="color"
+                      value={color.startsWith("#") && color.length === 7 ? color : "#000000"}
+                      onChange={(event) => updateProductColor(index, event.target.value)}
+                      aria-label={`Color ${index + 1}`}
+                    />
+                    <strong>{color}</strong>
+                    <button type="button" onClick={() => removeProductColor(index)} disabled={parseList(productDraft.colors).length <= 1}>
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={addProductColor}>Add color</button>
+              </div>
+            </div>
             <label>
               Occasions
               <input
@@ -1440,15 +1630,46 @@ export function AdminPage() {
                 onChange={(event) => setProductDraft((current) => ({ ...current, reviews: event.target.value }))}
               />
             </label>
-            <label className="admin-field-wide">
+            <div className="admin-field-wide admin-control-group">
               Images
+              <div className="admin-media-upload">
+                <label className="admin-upload-button">
+                  {isUploadingImages ? "Uploading images" : "Upload images"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={uploadProductImages}
+                    disabled={isUploadingImages}
+                  />
+                </label>
+                <span>Images upload to Cloudinary and are saved as product URLs.</span>
+              </div>
+              {parseList(productDraft.images).length > 0 && (
+                <div className="admin-image-preview-grid">
+                  {parseList(productDraft.images).map((image, index) => (
+                    <figure key={`${image}-${index}`}>
+                      <img src={image} alt="" />
+                      <button
+                        type="button"
+                        onClick={() => setProductDraft((current) => ({
+                          ...current,
+                          images: parseList(current.images).filter((_, imageIndex) => imageIndex !== index).join("\n"),
+                        }))}
+                      >
+                        Remove
+                      </button>
+                    </figure>
+                  ))}
+                </div>
+              )}
               <textarea
                 value={productDraft.images}
                 onChange={(event) => setProductDraft((current) => ({ ...current, images: event.target.value }))}
-                placeholder="One image URL per line"
+                placeholder="Advanced fallback: one image URL per line"
                 required
               />
-            </label>
+            </div>
             <label className="admin-field-wide">
               Description
               <textarea
@@ -1490,9 +1711,21 @@ export function AdminPage() {
               />
             </label>
           </div>
-          <div className="admin-checkboxes">
-            <label><input type="checkbox" checked={productDraft.isNew} onChange={(event) => setProductDraft((current) => ({ ...current, isNew: event.target.checked }))} /> New arrival</label>
-            <label><input type="checkbox" checked={productDraft.isBridalPreview} onChange={(event) => setProductDraft((current) => ({ ...current, isBridalPreview: event.target.checked }))} /> Bridal preview</label>
+          <div className="admin-control-group admin-field-wide">
+            Product tags
+            <div className="admin-tag-picker">
+              {tagOptions.map((tag) => (
+                <button
+                  type="button"
+                  key={tag}
+                  className={parseList(productDraft.tags).includes(tag) ? "is-selected" : ""}
+                  onClick={() => toggleProductTag(tag)}
+                >
+                  {tag}
+                </button>
+              ))}
+              <button type="button" onClick={addProductTag}>Add tag</button>
+            </div>
           </div>
           <button type="submit" disabled={isSavingProduct}>
             {isSavingProduct ? "Saving product" : "Save product"}
@@ -1540,7 +1773,7 @@ export function AdminPage() {
               <div key={order.id}>
                 <strong>{order.id.slice(0, 8)}</strong>
                 <span>{order.customer.name}</span>
-                <span>{formatMoney(order.total, order.currency)}</span>
+                <span>{formatCurrencyAmount(order.total, order.currency)}</span>
                 <em>{order.status}</em>
                 <button type="button" onClick={() => readOrderDetail(order.id)}>Open</button>
               </div>
@@ -1558,14 +1791,14 @@ export function AdminPage() {
               <div className="admin-order-summary">
                 <strong>{selectedOrder.customer.name}</strong>
                 <span>{selectedOrder.customer.email}</span>
-                <span>{formatMoney(selectedOrder.total, selectedOrder.currency)}</span>
+                <span>{formatCurrencyAmount(selectedOrder.total, selectedOrder.currency)}</span>
                 <span>{formatDate(selectedOrder.createdAt)}</span>
               </div>
               <p className="admin-status">{addressLine(selectedOrder.shippingAddress)}</p>
               <div className="admin-order-items">
                 {selectedOrder.items.map((item) => (
                   <span key={item.id}>
-                    {item.quantity} x {item.name} ({item.color}) - {formatMoney(item.lineTotal, selectedOrder.currency)}
+                    {item.quantity} x {item.name} ({item.color}) - {formatCurrencyAmount(item.lineTotal, selectedOrder.currency)}
                   </span>
                 ))}
               </div>
@@ -1641,7 +1874,7 @@ export function AdminPage() {
                 </span>
               </Link>
               <span>{customer.orderCount}</span>
-              <span>{customer.currency ? formatMoney(customer.totalSpend, customer.currency) : "-"}</span>
+              <span>{customer.currency ? formatCurrencyAmount(customer.totalSpend, customer.currency) : "-"}</span>
               <span>{customer.newsletterStatus ?? "No newsletter"}</span>
               <span className="admin-row-actions">
                 <Link className="admin-inline-button" to={`${adminBase}/customers/${encodeURIComponent(customer.email)}`}>
@@ -1696,7 +1929,7 @@ export function AdminPage() {
           </div>
           <div className="admin-product-facts">
             <span><strong>Orders</strong>{selectedCustomer.orderCount}</span>
-            <span><strong>Total spend</strong>{selectedCustomer.currency ? formatMoney(selectedCustomer.totalSpend, selectedCustomer.currency) : "-"}</span>
+            <span><strong>Total spend</strong>{selectedCustomer.currency ? formatCurrencyAmount(selectedCustomer.totalSpend, selectedCustomer.currency) : "-"}</span>
             <span><strong>Newsletter</strong>{selectedCustomer.newsletterStatus ?? "No newsletter"}</span>
             <span><strong>Source</strong>{selectedCustomer.newsletterSource ?? "Order/customer record"}</span>
             <span><strong>Phone</strong>{selectedCustomer.phone ?? "-"}</span>
@@ -1712,7 +1945,7 @@ export function AdminPage() {
               <div key={order.id}>
                 <strong>{order.id.slice(0, 8)}</strong>
                 <span>{formatDate(order.createdAt)}</span>
-                <span>{formatMoney(order.total, order.currency)}</span>
+                <span>{formatCurrencyAmount(order.total, order.currency)}</span>
                 <em>{order.status}</em>
                 <button type="button" onClick={() => {
                   setSelectedOrder(order);
@@ -2020,7 +2253,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  Shipping amount
+                  Base shipping amount (USD)
                   <input
                     type="number"
                     min="0"
@@ -2040,6 +2273,25 @@ export function AdminPage() {
                     onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, vatRate: Number(event.target.value) }) : current)}
                   />
                 </label>
+                {currencyOptions.map((currency) => (
+                  <label key={currency}>
+                    {currency} rate
+                    <input
+                      type="number"
+                      min="0"
+                      step={currency === "NGN" ? "1" : "0.0001"}
+                      value={settingsDraft.exchangeRates?.[currency] ?? defaultExchangeRates[currency]}
+                      onChange={(event) => setSettingsDraft((current) => current ? ({
+                        ...current,
+                        exchangeRates: {
+                          ...defaultExchangeRates,
+                          ...current.exchangeRates,
+                          [currency]: Number(event.target.value),
+                        },
+                      }) : current)}
+                    />
+                  </label>
+                ))}
                 <label className="admin-field-wide">
                   Store contact email
                   <input
@@ -2090,6 +2342,7 @@ export function AdminPage() {
               ["Database", settingsHealth?.database],
               ["Stripe", settingsHealth?.stripe],
               ["Email", settingsHealth?.email],
+              ["Media", settingsHealth?.media],
               ["Admin Email", settingsHealth?.adminEmail],
             ].map(([label, healthy]) => (
               <span key={String(label)} className={healthy ? "is-healthy" : "is-missing"}>

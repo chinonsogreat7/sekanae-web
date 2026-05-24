@@ -1,6 +1,7 @@
-import { config } from "../config.js";
+import { baseCurrency, type CurrencyCode } from "../../../packages/catalog/src/index.js";
+import { getStoreSettings } from "./settings-service.js";
 
-export type CurrencyCode = "USD" | "GBP" | "EUR" | "NGN" | "AED";
+export type { CurrencyCode };
 
 export type OrderPricing = {
   currency: CurrencyCode;
@@ -16,36 +17,46 @@ function roundMoney(amount: number) {
   return Math.round((amount + Number.EPSILON) * 100) / 100;
 }
 
+export function convertFromBaseCurrency(amount: number, currency: CurrencyCode, exchangeRates: Record<string, number>) {
+  if (currency === baseCurrency) {
+    return roundMoney(amount);
+  }
+
+  return roundMoney(amount * (exchangeRates[currency] ?? 1));
+}
+
 function includedTaxAmount(grossAmount: number, taxRate: number) {
   if (taxRate <= 0) return 0;
   return roundMoney(grossAmount - grossAmount / (1 + taxRate));
 }
 
-export function calculateOrderPricing(subtotal: number): OrderPricing {
-  const shipping = roundMoney(config.DEFAULT_SHIPPING_AMOUNT);
+export async function calculateOrderPricing(subtotal: number, currency?: CurrencyCode): Promise<OrderPricing> {
+  const settings = await getStoreSettings();
+  const selectedCurrency = currency ?? settings.defaultCurrency as CurrencyCode;
+  const shipping = convertFromBaseCurrency(settings.defaultShippingAmount, selectedCurrency, settings.exchangeRates);
   const taxableAmount = subtotal + shipping;
 
-  if (config.VAT_INCLUDED) {
+  if (settings.vatIncluded) {
     return {
-      currency: config.DEFAULT_CURRENCY,
+      currency: selectedCurrency,
       subtotal: roundMoney(subtotal),
       shipping,
-      tax: includedTaxAmount(taxableAmount, config.VAT_RATE),
+      tax: includedTaxAmount(taxableAmount, settings.vatRate),
       total: roundMoney(taxableAmount),
-      taxRate: config.VAT_RATE,
+      taxRate: settings.vatRate,
       taxIncluded: true,
     };
   }
 
-  const tax = roundMoney(taxableAmount * config.VAT_RATE);
+  const tax = roundMoney(taxableAmount * settings.vatRate);
 
   return {
-    currency: config.DEFAULT_CURRENCY,
+    currency: selectedCurrency,
     subtotal: roundMoney(subtotal),
     shipping,
     tax,
     total: roundMoney(taxableAmount + tax),
-    taxRate: config.VAT_RATE,
+    taxRate: settings.vatRate,
     taxIncluded: false,
   };
 }

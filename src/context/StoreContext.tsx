@@ -1,5 +1,7 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { getApiBaseUrl } from "../api/config";
 import { products, type CurrencyCode, type Product } from "../data/catalog";
+import { defaultExchangeRates, type ExchangeRates } from "../utils/money";
 
 export type CartItem = {
   productId: string;
@@ -11,6 +13,8 @@ export type CartItem = {
 type StoreContextValue = {
   currency: CurrencyCode;
   setCurrency: (currency: CurrencyCode) => void;
+  exchangeRates: ExchangeRates;
+  defaultShippingAmount: number;
   cartItems: CartItem[];
   wishlist: string[];
   cartProducts: Array<CartItem & { product: Product }>;
@@ -25,15 +29,55 @@ type StoreContextValue = {
   clearCart: () => void;
 };
 
+type MarketSettingsResponse = {
+  data: {
+    defaultCurrency: CurrencyCode;
+    defaultShippingAmount: number;
+    exchangeRates: ExchangeRates;
+  };
+};
+
 const StoreContext = createContext<StoreContextValue | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(defaultExchangeRates);
+  const [defaultShippingAmount, setDefaultShippingAmount] = useState(35);
   const [cartItems, setCartItems] = useState<CartItem[]>([
     { productId: "p-002", color: "Gold", quantity: 1, giftWrap: false },
     { productId: "p-005", color: "Espresso", quantity: 1, giftWrap: true },
   ]);
   const [wishlist, setWishlist] = useState<string[]>(["p-006", "p-008"]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    fetch(`${getApiBaseUrl()}/api/market-settings`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Market settings unavailable.");
+        }
+
+        return response.json() as Promise<MarketSettingsResponse>;
+      })
+      .then((payload) => {
+        if (!isCurrent) return;
+        setCurrency(payload.data.defaultCurrency);
+        setDefaultShippingAmount(payload.data.defaultShippingAmount);
+        setExchangeRates({
+          ...defaultExchangeRates,
+          ...payload.data.exchangeRates,
+        });
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setExchangeRates(defaultExchangeRates);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
 
   const cartProducts = useMemo(
     () =>
@@ -118,6 +162,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value: StoreContextValue = {
     currency,
     setCurrency,
+    exchangeRates,
+    defaultShippingAmount,
     cartItems,
     wishlist,
     cartProducts,

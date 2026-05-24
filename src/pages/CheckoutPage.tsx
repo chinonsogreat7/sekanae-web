@@ -7,9 +7,9 @@ import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
 
 export function CheckoutPage() {
-  const { cartProducts, currency, subtotal, clearCart } = useStore();
+  const { cartProducts, currency, exchangeRates, defaultShippingAmount, subtotal, clearCart } = useStore();
   const [isComplete, setIsComplete] = useState(false);
-  const shipping = subtotal > 500 ? 0 : 35;
+  const shipping = subtotal > 500 ? 0 : defaultShippingAmount;
 
   if (isComplete) {
     return (
@@ -86,11 +86,11 @@ export function CheckoutPage() {
           {cartProducts.map((item) => (
             <div key={item.productId}>
               <span>{item.product.name} / {item.color} x {item.quantity}</span>
-              <strong>{formatMoney(item.product.price * item.quantity, currency)}</strong>
+              <strong>{formatMoney(item.product.price * item.quantity, currency, exchangeRates)}</strong>
             </div>
           ))}
-          <div><span>Shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency)}</strong></div>
-          <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency)}</strong></div>
+          <div><span>Shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
+          <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
         </aside>
       </div>
     </div>

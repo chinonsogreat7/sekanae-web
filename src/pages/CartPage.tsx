@@ -5,8 +5,8 @@ import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
 
 export function CartPage() {
-  const { cartProducts, currency, subtotal, updateQuantity, removeFromCart, toggleGiftWrap } = useStore();
-  const shipping = subtotal > 500 ? 0 : 35;
+  const { cartProducts, currency, exchangeRates, defaultShippingAmount, subtotal, updateQuantity, removeFromCart, toggleGiftWrap } = useStore();
+  const shipping = subtotal > 500 ? 0 : defaultShippingAmount;
 
   return (
     <div className="page section-pad">
@@ -39,7 +39,7 @@ export function CartPage() {
                         checked={item.giftWrap}
                         onChange={() => toggleGiftWrap(item.productId, item.color)}
                       />
-                      Luxury gift packaging (+{formatMoney(18, currency)})
+                      Luxury gift packaging (+{formatMoney(18, currency, exchangeRates)})
                     </label>
                   </div>
                   <div className="quantity-control" aria-label={`${item.product.name} quantity`}>
@@ -51,7 +51,7 @@ export function CartPage() {
                       <Plus size={14} />
                     </button>
                   </div>
-                  <strong>{formatMoney(item.product.price * item.quantity + (item.giftWrap ? 18 : 0), currency)}</strong>
+                  <strong>{formatMoney(item.product.price * item.quantity + (item.giftWrap ? 18 : 0), currency, exchangeRates)}</strong>
                   <button className="icon-button" type="button" onClick={() => removeFromCart(item.productId, item.color)} aria-label="Remove item">
                     <Trash2 size={18} />
                   </button>
@@ -62,13 +62,13 @@ export function CartPage() {
         </section>
         <aside className="summary-card">
           <h2>Order Summary</h2>
-          <div><span>Subtotal</span><strong>{formatMoney(subtotal, currency)}</strong></div>
-          <div><span>International shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency)}</strong></div>
+          <div><span>Subtotal</span><strong>{formatMoney(subtotal, currency, exchangeRates)}</strong></div>
+          <div><span>International shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
           <label>
             Promo code
             <input type="text" placeholder="Enter code" />
           </label>
-          <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency)}</strong></div>
+          <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
           <Link to="/checkout" className="primary-button">Continue to checkout</Link>
         </aside>
       </div>

@@ -1,13 +1,4 @@
-import {
-  categories,
-  collections,
-  colors,
-  materials,
-  occasions,
-  products,
-  type Product,
-  type ProductCategory,
-} from "../../../packages/catalog/src/index.js";
+import { collections, products, type Product, type ProductCategory } from "../../../packages/catalog/src/index.js";
 import { hasDatabase } from "../db/pool.js";
 import {
   getProductByIdFromDatabase,
@@ -38,7 +29,12 @@ export type ProductListMeta = {
   colors: string[];
   materials: string[];
   occasions: string[];
+  tags: string[];
 };
+
+function uniqueSorted(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
 
 function listProductsFromFallback(filters: ProductFilters): { items: Product[]; meta: ProductListMeta } {
   const query = filters.q?.trim().toLowerCase();
@@ -82,10 +78,14 @@ function listProductsFromFallback(filters: ProductFilters): { items: Product[]; 
       total: sorted.length,
       limit,
       offset,
-      categories,
-      colors,
-      materials,
-      occasions,
+      categories: uniqueSorted(products.map((product) => product.category)),
+      colors: uniqueSorted(products.flatMap((product) => product.colors)),
+      materials: uniqueSorted(products.map((product) => product.material)),
+      occasions: uniqueSorted(products.flatMap((product) => product.occasion)),
+      tags: uniqueSorted(products.flatMap((product) => product.tags ?? [
+        ...(product.isNew ? ["New arrival"] : []),
+        ...(product.isBridalPreview ? ["Bridal preview"] : []),
+      ])),
     },
   };
 }

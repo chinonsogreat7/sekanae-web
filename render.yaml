@@ -52,6 +52,14 @@ services:
         sync: false
       - key: STRIPE_CANCEL_URL
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_UPLOAD_FOLDER
+        value: sekanae/products
       - key: DEFAULT_CURRENCY
         value: EUR
       - key: DEFAULT_MARKET_COUNTRY

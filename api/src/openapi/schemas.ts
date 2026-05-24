@@ -1,5 +1,3 @@
-import { categories } from "../../../packages/catalog/src/index.js";
-
 const currencyValues = ["USD", "GBP", "EUR", "NGN", "AED"] as const;
 
 const errorSchema = {
@@ -41,7 +39,7 @@ const productSchema = {
     id: { type: "string" },
     slug: { type: "string" },
     name: { type: "string" },
-    category: { type: "string", enum: categories },
+    category: { type: "string" },
     collection: { type: "string" },
     price: { type: "number", minimum: 0 },
     colors: { type: "array", items: { type: "string" } },
@@ -62,6 +60,7 @@ const productSchema = {
     rating: { type: "number", minimum: 0, maximum: 5 },
     reviews: { type: "integer", minimum: 0 },
     stock: { type: "integer", minimum: 0 },
+    tags: { type: "array", items: { type: "string" } },
     isNew: { type: "boolean" },
     isBridalPreview: { type: "boolean" },
   },
@@ -89,15 +88,33 @@ const idParamsSchema = {
 
 const productListMetaSchema = {
   type: "object",
-  required: ["total", "limit", "offset", "categories", "colors", "materials", "occasions"],
+  required: ["total", "limit", "offset", "categories", "colors", "materials", "occasions", "tags"],
   properties: {
     total: { type: "integer", minimum: 0 },
     limit: { type: "integer", minimum: 1 },
     offset: { type: "integer", minimum: 0 },
-    categories: { type: "array", items: { type: "string", enum: categories } },
+    categories: { type: "array", items: { type: "string" } },
     colors: { type: "array", items: { type: "string" } },
     materials: { type: "array", items: { type: "string" } },
     occasions: { type: "array", items: { type: "string" } },
+    tags: { type: "array", items: { type: "string" } },
+  },
+} as const;
+
+const marketSettingsSchema = {
+  type: "object",
+  required: ["defaultCurrency", "defaultMarketCountry", "defaultShippingAmount", "vatRate", "vatIncluded", "exchangeRates"],
+  properties: {
+    defaultCurrency: { type: "string", enum: currencyValues },
+    defaultMarketCountry: { type: "string", minLength: 2, maxLength: 2 },
+    defaultShippingAmount: { type: "number", minimum: 0 },
+    vatRate: { type: "number", minimum: 0, maximum: 1 },
+    vatIncluded: { type: "boolean" },
+    exchangeRates: {
+      type: "object",
+      required: [...currencyValues],
+      properties: Object.fromEntries(currencyValues.map((currency) => [currency, { type: "number", minimum: 0 }])),
+    },
   },
 } as const;
 
@@ -273,10 +290,18 @@ export const openApiSchemas = {
       data: collectionSchema,
     },
   },
+  marketSettingsResponse: {
+    type: "object",
+    required: ["data"],
+    properties: {
+      data: marketSettingsSchema,
+    },
+  },
   cartValidationBody: {
     type: "object",
     required: ["items"],
     properties: {
+      currency: { type: "string", enum: currencyValues },
       items: {
         type: "array",
         maxItems: 50,
@@ -312,6 +337,7 @@ export const openApiSchemas = {
     type: "object",
     required: ["customer", "shippingAddress", "items"],
     properties: {
+      currency: { type: "string", enum: currencyValues },
       customer: {
         type: "object",
         required: ["email", "name"],

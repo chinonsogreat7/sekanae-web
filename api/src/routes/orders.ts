@@ -14,6 +14,7 @@ const addressSchema = z.object({
 });
 
 const createOrderSchema = z.object({
+  currency: z.enum(["USD", "GBP", "EUR", "NGN", "AED"]).optional(),
   customer: z.object({
     email: z.string().email(),
     name: z.string().min(1),

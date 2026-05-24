@@ -91,6 +91,7 @@ async function seedCatalog() {
       await client.query("delete from product_images where product_id = $1", [product.id]);
       await client.query("delete from product_colors where product_id = $1", [product.id]);
       await client.query("delete from product_occasions where product_id = $1", [product.id]);
+      await client.query("delete from product_tags where product_id = $1", [product.id]);
 
       for (const [index, image] of product.images.entries()) {
         await client.query(
@@ -121,6 +122,22 @@ async function seedCatalog() {
             on conflict (product_id, occasion) do update set sort_order = excluded.sort_order
           `,
           [product.id, occasion, index],
+        );
+      }
+
+      const productTags = product.tags ?? [
+        ...(product.isNew ? ["New arrival"] : []),
+        ...(product.isBridalPreview ? ["Bridal preview"] : []),
+      ];
+
+      for (const [index, tag] of productTags.entries()) {
+        await client.query(
+          `
+            insert into product_tags (product_id, tag, sort_order)
+            values ($1, $2, $3)
+            on conflict (product_id, tag) do update set sort_order = excluded.sort_order
+          `,
+          [product.id, tag, index],
         );
       }
 

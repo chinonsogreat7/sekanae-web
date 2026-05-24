@@ -5,6 +5,7 @@ import { openApiSchemas } from "../openapi/schemas.js";
 import { validateCart } from "../services/cart-service.js";
 
 const cartValidationSchema = z.object({
+  currency: z.enum(["USD", "GBP", "EUR", "NGN", "AED"]).optional(),
   items: z
     .array(
       z.object({

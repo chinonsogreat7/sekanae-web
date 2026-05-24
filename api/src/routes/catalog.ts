@@ -1,14 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { categories, type ProductCategory } from "../../../packages/catalog/src/index.js";
 import { ok } from "../http.js";
 import { openApiSchemas } from "../openapi/schemas.js";
 import { getProductBySlug, listCollections, listProducts } from "../services/catalog-service.js";
-
-const categoryOptions = categories as [ProductCategory, ...ProductCategory[]];
+import { getStoreSettings } from "../services/settings-service.js";
 
 const productQuerySchema = z.object({
-  category: z.enum(categoryOptions).optional(),
+  category: z.string().min(1).optional(),
   collection: z.string().min(1).optional(),
   color: z.string().min(1).optional(),
   material: z.string().min(1).optional(),
@@ -20,6 +18,27 @@ const productQuerySchema = z.object({
 });
 
 export async function registerCatalogRoutes(app: FastifyInstance) {
+  app.get("/market-settings", {
+    schema: {
+      tags: ["Catalog"],
+      summary: "Get storefront market settings",
+      response: {
+        200: openApiSchemas.marketSettingsResponse,
+      },
+    },
+  }, async () => {
+    const settings = await getStoreSettings();
+
+    return ok({
+      defaultCurrency: settings.defaultCurrency,
+      defaultMarketCountry: settings.defaultMarketCountry,
+      defaultShippingAmount: settings.defaultShippingAmount,
+      vatRate: settings.vatRate,
+      vatIncluded: settings.vatIncluded,
+      exchangeRates: settings.exchangeRates,
+    });
+  });
+
   app.get("/products", {
     schema: {
       tags: ["Catalog"],
@@ -28,7 +47,7 @@ export async function registerCatalogRoutes(app: FastifyInstance) {
       querystring: {
         type: "object",
         properties: {
-          category: { type: "string", enum: categories },
+          category: { type: "string" },
           collection: { type: "string" },
           color: { type: "string" },
           material: { type: "string" },

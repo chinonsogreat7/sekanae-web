@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { type Product } from "../data/catalog";
 import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
+import { getProductTags, getSwatchClassName, getSwatchStyle } from "../utils/product-display";
 
 type ProductCardProps = {
   product: Product;
@@ -11,7 +12,7 @@ type ProductCardProps = {
 };
 
 export function ProductCard({ product, onQuickView }: ProductCardProps) {
-  const { currency, addToCart, toggleWishlist, isWishlisted } = useStore();
+  const { currency, exchangeRates, addToCart, toggleWishlist, isWishlisted } = useStore();
   const [selectedColor, setSelectedColor] = useState(product.colors[0]);
   const fallbackImage = "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=1000&q=85";
 
@@ -28,8 +29,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
           }}
         />
         <div className="product-flags">
-          {product.isNew && <span>New</span>}
-          {product.isBridalPreview && <span>Bridal Preview</span>}
+          {getProductTags(product).map((tag) => <span key={tag}>{tag}</span>)}
         </div>
       </Link>
       <div className="product-card-body">
@@ -38,7 +38,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
           <h3>
             <Link to={`/product/${product.slug}`}>{product.name}</Link>
           </h3>
-          <p>{formatMoney(product.price, currency)}</p>
+          <p>{formatMoney(product.price, currency, exchangeRates)}</p>
         </div>
         <div className="swatches" aria-label={`${product.name} colors`}>
           {product.colors.map((color) => (
@@ -48,7 +48,8 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
               title={`Select ${color}`}
               aria-label={`Select ${color}`}
               aria-pressed={selectedColor === color}
-              className={`swatch swatch-${color.toLowerCase().replaceAll(" ", "-")}`}
+              className={getSwatchClassName(color)}
+              style={getSwatchStyle(color)}
               onClick={() => setSelectedColor(color)}
             />
           ))}

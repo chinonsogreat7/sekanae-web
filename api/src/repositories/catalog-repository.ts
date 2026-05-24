@@ -1,6 +1,6 @@
 import { getPool } from "../db/pool.js";
 import type { ProductFilters, ProductListMeta, ProductSort } from "../services/catalog-service.js";
-import { categories, colors, materials, occasions, type Collection, type Product } from "../../../packages/catalog/src/index.js";
+import type { Collection, Product } from "../../../packages/catalog/src/index.js";
 
 type ProductRow = {
   id: string;
@@ -23,6 +23,7 @@ type ProductRow = {
   images: string[];
   product_colors: string[];
   product_occasions: string[];
+  product_tags: string[];
 };
 
 type CollectionRow = {
@@ -55,8 +56,28 @@ function mapProduct(row: ProductRow): Product {
     rating: Number(row.rating),
     reviews: row.reviews,
     stock: row.stock,
+    tags: row.product_tags.length ? row.product_tags : undefined,
     isNew: row.is_new || undefined,
     isBridalPreview: row.is_bridal_preview || undefined,
+  };
+}
+
+async function listProductOptionValues() {
+  const pool = getPool();
+  const [categoriesResult, colorsResult, materialsResult, occasionsResult, tagsResult] = await Promise.all([
+    pool.query<{ value: string }>("select distinct category as value from products where active = true order by category asc"),
+    pool.query<{ value: string }>("select distinct color as value from product_colors order by color asc"),
+    pool.query<{ value: string }>("select distinct material as value from products where active = true order by material asc"),
+    pool.query<{ value: string }>("select distinct occasion as value from product_occasions order by occasion asc"),
+    pool.query<{ value: string }>("select distinct tag as value from product_tags order by tag asc"),
+  ]);
+
+  return {
+    categories: categoriesResult.rows.map((row) => row.value),
+    colors: colorsResult.rows.map((row) => row.value),
+    materials: materialsResult.rows.map((row) => row.value),
+    occasions: occasionsResult.rows.map((row) => row.value),
+    tags: tagsResult.rows.map((row) => row.value),
   };
 }
 
@@ -150,7 +171,11 @@ export async function listProductsFromDatabase(filters: ProductFilters): Promise
         coalesce(
           (select array_agg(po.occasion order by po.sort_order) from product_occasions po where po.product_id = p.id),
           '{}'::text[]
-        ) as product_occasions
+        ) as product_occasions,
+        coalesce(
+          (select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id),
+          '{}'::text[]
+        ) as product_tags
       from products p
       left join inventory i on i.product_id = p.id
       where ${whereSql}
@@ -161,16 +186,15 @@ export async function listProductsFromDatabase(filters: ProductFilters): Promise
     [...values, limit, offset],
   );
 
+  const optionValues = await listProductOptionValues();
+
   return {
     items: productResult.rows.map(mapProduct),
     meta: {
       total: Number(countResult.rows[0]?.total ?? 0),
       limit,
       offset,
-      categories,
-      colors,
-      materials,
-      occasions,
+      ...optionValues,
     },
   };
 }
@@ -184,7 +208,8 @@ export async function getProductBySlugFromDatabase(slug: string): Promise<Produc
         coalesce(i.quantity, 0) as stock,
         coalesce((select array_agg(pi.url order by pi.sort_order) from product_images pi where pi.product_id = p.id), '{}'::text[]) as images,
         coalesce((select array_agg(pc.color order by pc.sort_order) from product_colors pc where pc.product_id = p.id), '{}'::text[]) as product_colors,
-        coalesce((select array_agg(po.occasion order by po.sort_order) from product_occasions po where po.product_id = p.id), '{}'::text[]) as product_occasions
+        coalesce((select array_agg(po.occasion order by po.sort_order) from product_occasions po where po.product_id = p.id), '{}'::text[]) as product_occasions,
+        coalesce((select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id), '{}'::text[]) as product_tags
       from products p
       left join inventory i on i.product_id = p.id
       where p.active = true and p.slug = $1
@@ -205,7 +230,8 @@ export async function getProductByIdFromDatabase(id: string): Promise<Product | 
         coalesce(i.quantity, 0) as stock,
         coalesce((select array_agg(pi.url order by pi.sort_order) from product_images pi where pi.product_id = p.id), '{}'::text[]) as images,
         coalesce((select array_agg(pc.color order by pc.sort_order) from product_colors pc where pc.product_id = p.id), '{}'::text[]) as product_colors,
-        coalesce((select array_agg(po.occasion order by po.sort_order) from product_occasions po where po.product_id = p.id), '{}'::text[]) as product_occasions
+        coalesce((select array_agg(po.occasion order by po.sort_order) from product_occasions po where po.product_id = p.id), '{}'::text[]) as product_occasions,
+        coalesce((select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id), '{}'::text[]) as product_tags
       from products p
       left join inventory i on i.product_id = p.id
       where p.active = true and p.id = $1

@@ -1,7 +1,9 @@
 import { getProductById } from "./catalog-service.js";
-import { config } from "../config.js";
+import { getStoreSettings } from "./settings-service.js";
+import { convertFromBaseCurrency, type CurrencyCode } from "./pricing-service.js";
 
 export type CartValidationInput = {
+  currency?: CurrencyCode;
   items: Array<{
     productId: string;
     quantity: number;
@@ -23,13 +25,15 @@ export type ValidatedCartItem = {
 };
 
 export type ValidatedCart = {
-  currency: typeof config.DEFAULT_CURRENCY;
+  currency: CurrencyCode;
   subtotal: number;
   items: ValidatedCartItem[];
   canCheckout: boolean;
 };
 
 export async function validateCart(input: CartValidationInput): Promise<ValidatedCart> {
+  const settings = await getStoreSettings();
+  const currency = input.currency ?? settings.defaultCurrency as CurrencyCode;
   const items = await Promise.all(input.items.map(async (item) => {
     const product = await getProductById(item.productId);
 
@@ -50,6 +54,7 @@ export async function validateCart(input: CartValidationInput): Promise<Validate
 
     const color = item.color && product.colors.includes(item.color) ? item.color : product.colors[0] ?? "Default";
     const isAvailable = product.stock >= item.quantity;
+    const unitPrice = convertFromBaseCurrency(product.price, currency, settings.exchangeRates);
 
     return {
       productId: product.id,
@@ -57,8 +62,8 @@ export async function validateCart(input: CartValidationInput): Promise<Validate
       name: product.name,
       color,
       quantity: item.quantity,
-      unitPrice: product.price,
-      lineTotal: isAvailable ? product.price * item.quantity : 0,
+      unitPrice,
+      lineTotal: isAvailable ? unitPrice * item.quantity : 0,
       availableQuantity: product.stock,
       isAvailable,
       message: isAvailable ? undefined : `Only ${product.stock} available.`,
@@ -66,7 +71,7 @@ export async function validateCart(input: CartValidationInput): Promise<Validate
   }));
 
   return {
-    currency: config.DEFAULT_CURRENCY,
+    currency,
     subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
     items,
     canCheckout: items.length > 0 && items.every((item) => item.isAvailable),

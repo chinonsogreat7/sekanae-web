@@ -1,13 +1,10 @@
 import { z } from "zod";
-import { categories, type ProductCategory } from "../../../packages/catalog/src/index.js";
-
-const categoryOptions = categories as [ProductCategory, ...ProductCategory[]];
 
 export const productBodySchema = z.object({
   id: z.string().min(1),
   slug: z.string().min(1),
   name: z.string().min(1),
-  category: z.enum(categoryOptions),
+  category: z.string().min(1),
   collection: z.string().min(1),
   price: z.number().min(0),
   colors: z.array(z.string().min(1)).min(1),
@@ -24,6 +21,7 @@ export const productBodySchema = z.object({
   rating: z.number().min(0).max(5).default(0),
   reviews: z.number().int().min(0).default(0),
   stock: z.number().int().min(0).default(0),
+  tags: z.array(z.string().min(1)).default([]),
   isNew: z.boolean().optional(),
   isBridalPreview: z.boolean().optional(),
 });

@@ -10,6 +10,7 @@ import { registerAdminCatalogRoutes } from "./routes/admin-catalog.js";
 import { registerAdminConciergeRoutes } from "./routes/admin-concierge.js";
 import { registerAdminCustomerRoutes } from "./routes/admin-customers.js";
 import { registerAdminDashboardRoutes } from "./routes/admin-dashboard.js";
+import { registerAdminMediaRoutes } from "./routes/admin-media.js";
 import { registerAdminNewsletterRoutes } from "./routes/admin-newsletter.js";
 import { registerAdminOrderRoutes } from "./routes/admin-orders.js";
 import { registerAdminSecurityRoutes } from "./routes/admin-security.js";
@@ -132,6 +133,7 @@ export async function buildServer() {
   await app.register(registerAdminCustomerRoutes, { prefix: "/api" });
   await app.register(registerAdminConciergeRoutes, { prefix: "/api" });
   await app.register(registerAdminOrderRoutes, { prefix: "/api" });
+  await app.register(registerAdminMediaRoutes, { prefix: "/api" });
   await app.register(registerAdminNewsletterRoutes, { prefix: "/api" });
   await app.register(registerAdminSettingsRoutes, { prefix: "/api" });
   await app.register(registerAdminSecurityRoutes, { prefix: "/api" });
