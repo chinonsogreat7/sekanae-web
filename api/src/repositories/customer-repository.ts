@@ -97,6 +97,8 @@ export async function listCustomersFromDatabase(filters: CustomerListFilters): P
         lower(email) as email,
         name,
         null::text as phone,
+        status as newsletter_status,
+        source as newsletter_source,
         '0'::text as order_count,
         '0'::text as total_spend_cents,
         null::text as currency,
@@ -109,15 +111,15 @@ export async function listCustomersFromDatabase(filters: CustomerListFilters): P
         coalesce(o.email, n.email) as email,
         coalesce(o.name, n.name) as name,
         o.phone,
-        n.status as newsletter_status,
-        n.source as newsletter_source,
+        n.newsletter_status,
+        n.newsletter_source,
         coalesce(o.order_count, n.order_count) as order_count,
         coalesce(o.total_spend_cents, n.total_spend_cents) as total_spend_cents,
         o.currency,
         o.last_order_at,
         coalesce(o.first_seen_at, n.first_seen_at) as first_seen_at
       from order_customers o
-      full outer join newsletter_subscribers n on lower(n.email) = o.email
+      full outer join newsletter_customers n on n.email = o.email
     )
     select *
     from merged_customers
