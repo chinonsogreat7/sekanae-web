@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { PageMeta } from "../components/PageMeta";
 import { ProductCard } from "../components/ProductCard";
 import { products } from "../data/catalog";
 
@@ -7,6 +8,11 @@ export function BridalPage() {
 
   return (
     <div className="page">
+      <PageMeta
+        title="Bridal Atelier"
+        path="/bridal"
+        description="Preview SEKANAE Bridal Atelier pieces for destination weddings, keepsake gifts, ceremony clutches, and refined accessories."
+      />
       <section className="bridal-page-hero">
         <div>
           <h1>The Bridal Atelier is coming soon</h1>

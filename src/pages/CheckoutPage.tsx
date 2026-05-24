@@ -1,6 +1,8 @@
 import { CreditCard, LockKeyhole, Truck } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { CustomSelect } from "../components/CustomSelect";
+import { PageMeta } from "../components/PageMeta";
 import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
 
@@ -12,6 +14,11 @@ export function CheckoutPage() {
   if (isComplete) {
     return (
       <div className="page section-pad">
+        <PageMeta
+          title="Order Received"
+          path="/checkout"
+          description="Your SEKANAE order has been received."
+        />
         <section className="confirmation">
           <h1>Your order has been received.</h1>
           <p>
@@ -26,6 +33,11 @@ export function CheckoutPage() {
 
   return (
     <div className="page section-pad">
+      <PageMeta
+        title="Secure Checkout"
+        path="/checkout"
+        description="Complete secure checkout for selected SEKANAE accessories with international shipping."
+      />
       <div className="checkout-layout">
         <section className="checkout-form">
           <h1>Secure Checkout</h1>
@@ -41,16 +53,19 @@ export function CheckoutPage() {
           }}>
             <div className="form-grid">
               <label>Email<input type="email" required placeholder="you@example.com" /></label>
-              <label>Country / Region
-                <select defaultValue="United States">
-                  <option>United States</option>
-                  <option>United Kingdom</option>
-                  <option>Nigeria</option>
-                  <option>United Arab Emirates</option>
-                  <option>France</option>
-                  <option>Singapore</option>
-                </select>
-              </label>
+              <CustomSelect
+                label="Country / Region"
+                name="country"
+                defaultValue="United States"
+                options={[
+                  "United States",
+                  "United Kingdom",
+                  "Nigeria",
+                  "United Arab Emirates",
+                  "France",
+                  "Singapore",
+                ]}
+              />
               <label>First name<input required /></label>
               <label>Last name<input required /></label>
               <label className="wide">Address<input required /></label>

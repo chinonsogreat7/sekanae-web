@@ -4,11 +4,13 @@ import swaggerUi from "@fastify/swagger-ui";
 import Fastify from "fastify";
 import { config } from "./config.js";
 import { registerErrorHandler } from "./http.js";
+import { registerAdminAuthRoutes } from "./routes/admin-auth.js";
 import { registerAdminCatalogRoutes } from "./routes/admin-catalog.js";
 import { registerAdminNewsletterRoutes } from "./routes/admin-newsletter.js";
 import { registerAdminOrderRoutes } from "./routes/admin-orders.js";
 import { registerCartRoutes } from "./routes/cart.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
+import { registerConciergeRoutes } from "./routes/concierge.js";
 import { registerNewsletterRoutes } from "./routes/newsletter.js";
 import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
@@ -44,6 +46,7 @@ export async function buildServer() {
         { name: "Orders", description: "Guest order creation and customer order lookup" },
         { name: "Payments", description: "Stripe checkout and payment webhook workflows" },
         { name: "Newsletter", description: "Newsletter subscription and unsubscribe workflows" },
+        { name: "Client Care", description: "Concierge and client support workflows" },
         { name: "Admin", description: "Protected catalog and inventory management workflows" },
       ],
       components: {
@@ -99,8 +102,10 @@ export async function buildServer() {
   await app.register(registerCartRoutes, { prefix: "/api" });
   await app.register(registerOrderRoutes, { prefix: "/api" });
   await app.register(registerNewsletterRoutes, { prefix: "/api" });
+  await app.register(registerConciergeRoutes, { prefix: "/api" });
   await app.register(registerPaymentRoutes, { prefix: "/api" });
   await app.register(registerStripeWebhookRoutes, { prefix: "/api" });
+  await app.register(registerAdminAuthRoutes, { prefix: "/api" });
   await app.register(registerAdminCatalogRoutes, { prefix: "/api" });
   await app.register(registerAdminOrderRoutes, { prefix: "/api" });
   await app.register(registerAdminNewsletterRoutes, { prefix: "/api" });

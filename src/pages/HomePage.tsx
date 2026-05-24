@@ -1,6 +1,7 @@
 import { ArrowRight, MoveRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { ProductCard } from "../components/ProductCard";
+import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
 import { collections, products } from "../data/catalog";
 import { journalPosts } from "../data/editorial";
@@ -10,6 +11,11 @@ export function HomePage() {
 
   return (
     <div className="page boutique-home">
+      <PageMeta
+        title="SEKANAÉ | Luxury Accessories for Women of the World"
+        path="/"
+        description="SEKANAE is a refined accessories maison for modern international women, offering jewelry, handbags, scarves, travel accessories, gifts, and Bridal Atelier previews."
+      />
       <section className="hero-section">
         <div className="hero-copy">
           <h1>Luxury Accessories for Women of the World</h1>
@@ -30,6 +36,8 @@ export function HomePage() {
           <img
             src="https://images.unsplash.com/photo-1502716119720-b23a93e5fe1b?auto=format&fit=crop&w=1400&q=88"
             alt="Elegant woman carrying luxury accessories while traveling"
+            decoding="async"
+            fetchPriority="high"
           />
         </div>
       </section>
@@ -70,6 +78,8 @@ export function HomePage() {
         <img
           src="https://images.unsplash.com/photo-1529634597503-139d3726fed5?auto=format&fit=crop&w=1200&q=85"
           alt="Bridal atelier preview styling"
+          decoding="async"
+          loading="lazy"
         />
         <div>
           <h2>Bridal Atelier</h2>
@@ -88,7 +98,7 @@ export function HomePage() {
         <div className="journal-grid">
           {journalPosts.map((post) => (
             <article key={post.title}>
-              <img src={post.image} alt={post.title} loading="lazy" />
+              <img src={post.image} alt={post.title} decoding="async" loading="lazy" />
               <p className="microcopy">{post.category}</p>
               <h3>{post.title}</h3>
               <p>{post.excerpt}</p>

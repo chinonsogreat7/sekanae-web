@@ -1,6 +1,8 @@
 import { SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { CustomSelect } from "../components/CustomSelect";
+import { PageMeta } from "../components/PageMeta";
 import { ProductCard } from "../components/ProductCard";
 import { QuickView } from "../components/QuickView";
 import { SectionHeading } from "../components/SectionHeading";
@@ -27,12 +29,16 @@ export function ShopPage() {
 
   return (
     <div className="page">
+      <PageMeta
+        title="Shop Accessories"
+        path="/shop"
+        description="Shop SEKANAE jewelry, handbags, scarves, sunglasses, leather goods, gifts, and travel accessories for women in motion."
+      />
       <section className="page-hero shop-hero">
         <div>
           <h1>Shop SEKANAE</h1>
           <p>
-            Discover jewelry, handbags, scarves, sunglasses, leather goods, gifts, and
-            travel accessories for women in motion.
+            Discover accessories and gifts for women in motion.
           </p>
         </div>
       </section>
@@ -40,34 +46,10 @@ export function ShopPage() {
       <section className="shop-layout section-pad">
         <aside className="filter-panel" aria-label="Product filters">
           <h2><SlidersHorizontal size={18} /> Filters</h2>
-          <label>
-            Category
-            <select value={category} onChange={(event) => setCategory(event.target.value)}>
-              <option>All</option>
-              {categories.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label>
-            Color
-            <select value={color} onChange={(event) => setColor(event.target.value)}>
-              <option>All</option>
-              {colors.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label>
-            Material
-            <select value={material} onChange={(event) => setMaterial(event.target.value)}>
-              <option>All</option>
-              {materials.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
-          <label>
-            Occasion
-            <select value={occasion} onChange={(event) => setOccasion(event.target.value)}>
-              <option>All</option>
-              {occasions.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </label>
+          <CustomSelect label="Category" value={category} onChange={setCategory} options={["All", ...categories]} />
+          <CustomSelect label="Color" value={color} onChange={setColor} options={["All", ...colors]} />
+          <CustomSelect label="Material" value={material} onChange={setMaterial} options={["All", ...materials]} />
+          <CustomSelect label="Occasion" value={occasion} onChange={setOccasion} options={["All", ...occasions]} />
           <label>
             Price up to ${maxPrice}
             <input

@@ -2,6 +2,7 @@ import { ChevronRight, Heart, PackageCheck, Ruler, ShieldCheck, Star } from "luc
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getProduct } from "../api/client";
+import { PageMeta } from "../components/PageMeta";
 import { ProductCard } from "../components/ProductCard";
 import { useStore } from "../context/StoreContext";
 import { useCatalog } from "../context/CatalogContext";
@@ -73,6 +74,11 @@ export function ProductPage() {
 
   return (
     <div className="page">
+      <PageMeta
+        title={product.name}
+        path={`/product/${product.slug}`}
+        description={product.description}
+      />
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/shop">Shop</Link>
         <ChevronRight size={14} />

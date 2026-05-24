@@ -1,5 +1,6 @@
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { PageMeta } from "../components/PageMeta";
 import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
 
@@ -9,6 +10,11 @@ export function CartPage() {
 
   return (
     <div className="page section-pad">
+      <PageMeta
+        title="Your Cart"
+        path="/cart"
+        description="Review selected SEKANAE accessories, gift packaging, shipping, and checkout details."
+      />
       <div className="cart-layout">
         <section>
           <h1>Your Cart</h1>

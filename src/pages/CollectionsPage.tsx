@@ -1,10 +1,16 @@
 import { Link } from "react-router-dom";
+import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
 import { collections } from "../data/catalog";
 
 export function CollectionsPage() {
   return (
     <div className="page">
+      <PageMeta
+        title="Curated Collections"
+        path="/collections"
+        description="Explore SEKANAE collections for travel, evening, gold, everyday elegance, new arrivals, and considered gifting."
+      />
       <section className="page-hero collections-hero">
         <div>
           <h1>Curated Collections</h1>

@@ -90,6 +90,13 @@ export function Footer() {
           <Link to="/about">Our World</Link>
         </div>
         <div>
+          <h3>Client Services</h3>
+          <Link to="/shipping">Shipping</Link>
+          <Link to="/returns">Returns</Link>
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/client-care">Contact Concierge</Link>
+        </div>
+        <div>
           <h3>Social</h3>
           <span><Camera size={16} /> @sekanae.co</span>
           <span><Mail size={16} /> care@sekanae.co</span>

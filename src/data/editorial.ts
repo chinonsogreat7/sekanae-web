@@ -3,7 +3,7 @@ export const journalPosts = [
     title: "From Day Meetings to Evening Departures",
     category: "Style Notes",
     excerpt: "How to build a travel-day wardrobe with structure, softness, and one exceptional accessory.",
-    image: "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?auto=format&fit=crop&w=1000&q=85",
+    image: "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1000&q=85",
   },
   {
     title: "The Art of the Gift",

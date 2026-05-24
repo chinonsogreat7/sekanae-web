@@ -2,6 +2,7 @@ services:
   - type: web
     name: sekanae-web
     runtime: static
+    autoDeployTrigger: off
     domains:
       - sekanae.co
       - www.sekanae.co
@@ -18,6 +19,7 @@ services:
   - type: web
     name: sekanae-api
     runtime: node
+    autoDeployTrigger: off
     buildCommand: npm ci && npm run api:build
     preDeployCommand: npm run db:migrate && npm run db:seed
     startCommand: npm run api:start
@@ -38,6 +40,10 @@ services:
       - key: EMAIL_FROM
         sync: false
       - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_LOGIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD_HASH
         sync: false
       - key: STRIPE_SECRET_KEY
         sync: false

@@ -208,12 +208,9 @@ button {
   gap: 8px;
 }
 
-.filter-panel select,
 .summary-card input,
 .checkout-form input,
-.checkout-form select,
 .concierge-form input,
-.concierge-form select,
 .concierge-form textarea,
 .admin-search input {
   border: 1px solid var(--line);
@@ -222,6 +219,91 @@ button {
   min-height: 40px;
   padding: 0 12px;
   border-radius: 2px;
+}
+
+.custom-select {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.custom-select-label {
+  display: block;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--espresso);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.custom-select-trigger svg {
+  flex: 0 0 auto;
+  transition: transform var(--motion-fast) ease;
+}
+
+.custom-select-trigger[aria-expanded="true"] {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(169, 119, 45, 0.14);
+}
+
+.custom-select-trigger[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.custom-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 1600;
+  max-height: min(280px, 46vh);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 18px 44px rgba(35, 28, 24, 0.14);
+  animation: modal-rise var(--motion-medium) var(--ease-luxury) both;
+}
+
+.custom-select-menu button {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--espresso);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.custom-select-menu button:hover,
+.custom-select-menu button.is-active,
+.custom-select-menu button[aria-selected="true"] {
+  background: var(--pearl);
+  color: var(--gold);
+}
+
+.custom-select-menu button svg {
+  flex: 0 0 auto;
 }
 
 .currency-picker {
@@ -694,6 +776,10 @@ p {
   gap: 22px;
 }
 
+.shop-layout .product-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .product-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -818,7 +904,7 @@ p {
 .product-actions {
   border-top: 1px solid var(--line);
   display: grid;
-  grid-template-columns: 1fr 0.72fr 0.72fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .product-actions button {
@@ -826,13 +912,27 @@ p {
   border-right: 1px solid var(--line);
   background: var(--surface);
   color: var(--espresso);
+  min-width: 0;
   min-height: 50px;
+  padding: 0 12px;
   transform: translateY(0);
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 700;
   gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.product-actions button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.product-actions button svg {
+  flex: 0 0 auto;
 }
 
 .product-actions button:hover {
@@ -972,6 +1072,11 @@ p {
   color: #fff;
 }
 
+.page-hero > div {
+  max-width: min(680px, 100%);
+  min-width: 0;
+}
+
 .page-hero h1,
 .page-hero p {
   color: #fff;
@@ -981,6 +1086,7 @@ p {
   color: #eee1d0;
   max-width: 680px;
   font-size: 1.12rem;
+  overflow-wrap: break-word;
 }
 
 .shop-hero {
@@ -1583,9 +1689,107 @@ p {
   font-size: 0.84rem;
 }
 
+.form-status {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.concierge-form button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.legal-hero {
+  overflow: hidden;
+  min-height: 360px;
+  display: grid;
+  align-items: end;
+  padding: 80px clamp(20px, 6vw, 86px);
+  background:
+    linear-gradient(115deg, rgba(9, 8, 7, 0.94), rgba(35, 28, 24, 0.72)),
+    repeating-linear-gradient(90deg, rgba(244, 223, 184, 0.08) 0 1px, transparent 1px 90px),
+    var(--black);
+}
+
+.legal-hero h1,
+.legal-hero p {
+  color: #fff;
+}
+
+.legal-hero p {
+  max-width: min(720px, 100%);
+  color: #eee1d0;
+  font-size: 1.08rem;
+}
+
+.legal-hero > div {
+  width: min(760px, 100%);
+}
+
+.legal-hero span {
+  color: #cfc5b8;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legal-layout {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 820px);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: start;
+}
+
+.legal-aside {
+  position: sticky;
+  top: 132px;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.legal-aside a {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-aside a:last-child {
+  border-bottom: 0;
+}
+
+.legal-aside a:hover {
+  color: var(--gold);
+}
+
+.legal-content {
+  display: grid;
+  gap: 22px;
+}
+
+.legal-content article {
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.legal-content h2 {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .footer-grid {
   display: grid;
-  grid-template-columns: 1.4fr repeat(3, 1fr);
+  grid-template-columns: 1.4fr repeat(4, 1fr);
   gap: 38px;
   padding-top: 44px;
 }
@@ -1614,6 +1818,68 @@ p {
   grid-template-columns: 270px 1fr;
   min-height: 100vh;
   background: #f6f3ee;
+  min-width: 0;
+}
+
+.admin-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(22px, 5vw, 54px);
+  background: #f6f3ee;
+}
+
+.admin-login-panel {
+  box-sizing: border-box;
+  width: calc(100vw - 44px);
+  min-width: 0;
+  max-width: 440px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: clamp(24px, 4vw, 42px);
+}
+
+.admin-login-panel h1 {
+  font-size: clamp(1.95rem, 8vw, 3.6rem);
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+
+.admin-login-panel form,
+.admin-login-panel label {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-login-panel input {
+  min-width: 0;
+  width: 100%;
+}
+
+.admin-login-panel label {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-login-panel button,
+.admin-sign-out {
+  min-height: 42px;
+  border: 1px solid var(--black);
+  background: var(--black);
+  color: #fff;
+  padding: 0 18px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-login-panel button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .admin-sidebar {
@@ -1645,6 +1911,7 @@ p {
 
 .admin-main {
   padding: 34px;
+  min-width: 0;
 }
 
 .admin-topbar {
@@ -1653,14 +1920,17 @@ p {
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 28px;
+  min-width: 0;
 }
 
 .admin-topbar h1 {
   font-size: clamp(2.2rem, 4vw, 4rem);
+  overflow-wrap: anywhere;
 }
 
 .admin-search {
-  min-width: min(420px, 100%);
+  width: min(420px, 100%);
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1671,7 +1941,12 @@ p {
 
 .admin-search input {
   border: 0;
+  min-width: 0;
   width: 100%;
+}
+
+.admin-sign-out {
+  flex: 0 0 auto;
 }
 
 .admin-metrics {
@@ -1714,10 +1989,12 @@ p {
   grid-template-columns: 1.35fr 0.85fr;
   gap: 18px;
   margin-top: 18px;
+  min-width: 0;
 }
 
 .admin-panel {
   padding: 22px;
+  min-width: 0;
 }
 
 .panel-heading {
@@ -1785,8 +2062,8 @@ p {
   letter-spacing: 0.04em;
 }
 
-.newsletter-admin-form label:nth-child(4),
-.newsletter-admin-form label:nth-child(5) {
+.newsletter-admin-form label:nth-child(3),
+.newsletter-admin-form label:nth-child(4) {
   grid-column: 1 / -1;
 }
 
@@ -2047,18 +2324,24 @@ p {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .shop-layout .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .shop-layout,
   .product-detail,
   .cart-layout,
   .checkout-layout,
   .care-layout,
+  .legal-layout,
   .admin-grid {
     grid-template-columns: 1fr;
   }
 
   .filter-panel,
   .product-info-panel,
-  .summary-card {
+  .summary-card,
+  .legal-aside {
     position: static;
   }
 }
@@ -2157,6 +2440,10 @@ p {
     grid-template-columns: 1fr;
   }
 
+  .shop-layout .product-grid {
+    grid-template-columns: 1fr;
+  }
+
   .not-found-page {
     padding: 22px;
   }
@@ -2197,6 +2484,31 @@ p {
     top: 70px;
   }
 
+  .legal-hero {
+    min-height: 330px;
+    padding: 70px 30px;
+  }
+
+  .legal-hero > div,
+  .legal-layout,
+  .legal-content,
+  .legal-aside {
+    width: min(100%, 326px);
+    max-width: 326px;
+  }
+
+  .legal-hero h1 {
+    font-size: clamp(3.2rem, 15vw, 4.6rem);
+  }
+
+  .legal-hero p {
+    font-size: 0.98rem;
+  }
+
+  .legal-content p {
+    overflow-wrap: break-word;
+  }
+
   .section-heading,
   .admin-topbar {
     align-items: start;
@@ -2214,6 +2526,12 @@ p {
 
   .page-hero {
     min-height: 360px;
+  }
+
+  .page-hero p {
+    max-width: 300px;
+    font-size: 0.98rem;
+    line-height: 1.65;
   }
 
   .quick-view {
@@ -2263,8 +2581,48 @@ p {
     padding: 22px 16px;
   }
 
+  .admin-login-page {
+    padding: 22px 16px;
+    place-items: center stretch;
+  }
+
+  .admin-login-panel {
+    justify-self: center;
+    width: calc(100vw - 32px);
+    max-width: 440px;
+    padding: 24px;
+  }
+
+  .admin-login-panel h1 {
+    font-size: clamp(1.9rem, 10vw, 2.55rem);
+    line-height: 1.02;
+  }
+
+  .admin-topbar h1 {
+    font-size: clamp(1.75rem, 7vw, 1.95rem);
+    line-height: 1.04;
+  }
+
+  .admin-search {
+    width: 100%;
+  }
+
+  .admin-sign-out {
+    width: 100%;
+  }
+
+  .admin-panel .panel-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-panel .panel-heading button {
+    width: 100%;
+  }
+
   .admin-table {
     overflow-x: auto;
+    max-width: 100%;
   }
 
   .admin-table-head,
@@ -2685,7 +3043,7 @@ body {
 }
 
 .footer-grid {
-  grid-template-columns: 1.3fr repeat(3, 1fr);
+  grid-template-columns: 1.3fr repeat(4, 1fr);
   gap: 24px;
   padding-top: 24px;
   font-size: 0.74rem;

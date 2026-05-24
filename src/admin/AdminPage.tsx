@@ -1,9 +1,10 @@
 import { BarChart3, Boxes, ClipboardList, Edit3, Globe2, MailCheck, PackagePlus, Search, Send, Settings, Sparkles } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { adminMetrics, recentOrders } from "../data/editorial";
 import { products } from "../data/catalog";
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const adminTokenStorageKey = "sekanae_admin_token";
 
 type NewsletterStats = {
   subscribed: number;
@@ -19,8 +20,22 @@ type NewsletterCampaign = {
   failedCount: number;
 };
 
+type AdminSessionResponse = {
+  data: {
+    authenticated: boolean;
+    token: string;
+    email: string;
+    expiresAt: string;
+  };
+};
+
 export function AdminPage() {
   const [adminToken, setAdminToken] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginMessage, setLoginMessage] = useState<string | null>(null);
   const [newsletterStats, setNewsletterStats] = useState<NewsletterStats | null>(null);
   const [campaignResult, setCampaignResult] = useState<NewsletterCampaign | null>(null);
   const [newsletterMessage, setNewsletterMessage] = useState<string | null>(null);
@@ -30,9 +45,83 @@ export function AdminPage() {
   const [html, setHtml] = useState("<p>A new SEKANAE edit is now available.</p>");
   const [text, setText] = useState("A new SEKANAE edit is now available.");
 
+  useEffect(() => {
+    const savedToken = window.sessionStorage.getItem(adminTokenStorageKey);
+
+    if (!savedToken) {
+      return;
+    }
+
+    const token = savedToken;
+
+    async function restoreSession() {
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/admin/session`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          window.sessionStorage.removeItem(adminTokenStorageKey);
+          return;
+        }
+
+        setAdminToken(token);
+        setIsAuthenticated(true);
+      } catch {
+        window.sessionStorage.removeItem(adminTokenStorageKey);
+      }
+    }
+
+    void restoreSession();
+  }, []);
+
+  async function submitAdminLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setLoginMessage(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/admin/session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: loginEmail,
+          password: loginPassword,
+        }),
+      });
+      const payload = await response.json() as Partial<AdminSessionResponse> & { error?: { message?: string } };
+
+      if (!response.ok || !payload.data?.token) {
+        throw new Error(payload.error?.message ?? "Invalid email or password.");
+      }
+
+      window.sessionStorage.setItem(adminTokenStorageKey, payload.data.token);
+      setAdminToken(payload.data.token);
+      setLoginPassword("");
+      setIsAuthenticated(true);
+    } catch (error) {
+      setLoginMessage(error instanceof Error ? error.message : "Admin login failed.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  function signOut() {
+    window.sessionStorage.removeItem(adminTokenStorageKey);
+    setAdminToken("");
+    setLoginPassword("");
+    setIsAuthenticated(false);
+    setNewsletterStats(null);
+    setCampaignResult(null);
+  }
+
   async function readNewsletterStats() {
     if (!adminToken) {
-      setNewsletterMessage("Enter the admin API key first.");
+      setNewsletterMessage("Sign in again to continue.");
       return;
     }
 
@@ -59,7 +148,7 @@ export function AdminPage() {
     event.preventDefault();
 
     if (!adminToken) {
-      setNewsletterMessage("Enter the admin API key first.");
+      setNewsletterMessage("Sign in again to continue.");
       return;
     }
 
@@ -98,6 +187,45 @@ export function AdminPage() {
     }
   }
 
+  if (!isAuthenticated) {
+    return (
+      <div className="admin-login-page">
+        <section className="admin-login-panel">
+          <p className="microcopy">Admin Studio</p>
+          <h1>SEKANAE access</h1>
+          <form onSubmit={submitAdminLogin}>
+            <label>
+              Email
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(event) => setLoginEmail(event.target.value)}
+                placeholder="admin@sekanae.co"
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="Enter password"
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <button type="submit" disabled={isLoggingIn}>
+              {isLoggingIn ? "Checking access" : "Sign in"}
+            </button>
+          </form>
+          {loginMessage && <p className="admin-status">{loginMessage}</p>}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-page">
       <aside className="admin-sidebar">
@@ -114,12 +242,15 @@ export function AdminPage() {
         <header className="admin-topbar">
           <div>
             <p className="microcopy">Admin Studio</p>
-            <h1>Manage the SEKANAE maison</h1>
+            <h1>Manage SEKANAE</h1>
           </div>
           <div className="admin-search">
             <Search size={16} />
             <input placeholder="Search products, orders, clients" />
           </div>
+          <button className="admin-sign-out" type="button" onClick={signOut}>
+            Sign out
+          </button>
         </header>
 
         <section className="admin-metrics" id="dashboard">
@@ -184,16 +315,6 @@ export function AdminPage() {
               <span><strong>{newsletterStats?.campaigns ?? "-"}</strong> campaigns</span>
             </div>
             <form className="newsletter-admin-form" onSubmit={sendNewsletter}>
-              <label>
-                Admin API key
-                <input
-                  type="password"
-                  value={adminToken}
-                  onChange={(event) => setAdminToken(event.target.value)}
-                  placeholder="Bearer token"
-                  autoComplete="off"
-                />
-              </label>
               <label>
                 Subject
                 <input

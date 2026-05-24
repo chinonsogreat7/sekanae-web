@@ -21,6 +21,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
         <img
           src={product.images[0]}
           alt={product.name}
+          decoding="async"
           loading="lazy"
           onError={(event) => {
             event.currentTarget.src = fallbackImage;

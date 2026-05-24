@@ -1,6 +1,13 @@
+import { PageMeta } from "../components/PageMeta";
+
 export function AboutPage() {
   return (
     <div className="page">
+      <PageMeta
+        title="Our World"
+        path="/about"
+        description="Discover the SEKANAE world: refined accessories shaped by craft, culture, movement, and modern ceremony."
+      />
       <section className="about-hero">
         <div>
           <h1>A refined accessories maison for women in motion.</h1>

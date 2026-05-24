@@ -1,9 +1,15 @@
+import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
 import { lookbookStories } from "../data/editorial";
 
 export function LookbookPage() {
   return (
     <div className="page">
+      <PageMeta
+        title="The Lookbook"
+        path="/lookbook"
+        description="Styling notes from SEKANAE for work, travel, evening events, ceremony, and everyday luxury."
+      />
       <section className="page-hero lookbook-hero">
         <div>
           <h1>The Lookbook</h1>

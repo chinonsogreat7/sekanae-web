@@ -1,0 +1,16 @@
+{
+  "name": "SEKANAE",
+  "short_name": "SEKANAE",
+  "description": "Luxury accessories for women of the world.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfaf7",
+  "theme_color": "#090807",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml"
+    }
+  ]
+}
