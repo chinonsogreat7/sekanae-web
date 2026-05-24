@@ -10,6 +10,7 @@ const migrationFiles = [
   "005_payment_inventory_events.sql",
   "006_newsletter.sql",
   "007_admin_operations.sql",
+  "008_product_tags.sql",
 ];
 
 async function migrate() {
