@@ -1,16 +1,24 @@
 import {
   Activity,
   BarChart3,
+  Bold,
   Boxes,
   ClipboardList,
+  Code2,
   Edit3,
   Eye,
   Globe2,
+  Heading2,
+  Italic,
   KeyRound,
   Layers3,
+  Link2,
   LifeBuoy,
+  List,
+  ListOrdered,
   MailCheck,
   PackagePlus,
+  Pilcrow,
   Search,
   Send,
   Settings,
@@ -19,7 +27,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { type ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type ClipboardEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getProducts } from "../api/client";
 import { getApiBaseUrl } from "../api/config";
@@ -283,6 +291,11 @@ function parseList(value: string) {
     .filter(Boolean);
 }
 
+function plainTextFromHtml(value: string) {
+  const documentBody = new DOMParser().parseFromString(value, "text/html").body;
+  return documentBody.textContent?.replace(/\s+/g, " ").trim() ?? "";
+}
+
 function productTags(product: Product) {
   const tags = product.tags ?? [];
   return tags.length ? tags : [
@@ -307,7 +320,7 @@ function createProductDraft(): ProductDraft {
     category: "Jewelry",
     collection: "",
     price: "",
-    colors: "",
+    colors: "#000000",
     material: "",
     occasion: "",
     images: "",
@@ -474,11 +487,14 @@ export function AdminPage() {
   const [previewText, setPreviewText] = useState("");
   const [html, setHtml] = useState("<p>A new SEKANAE edit is now available.</p>");
   const [text, setText] = useState("A new SEKANAE edit is now available.");
+  const [isNewsletterSourceMode, setIsNewsletterSourceMode] = useState(false);
+  const newsletterEditorRef = useRef<HTMLDivElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [showImageUrlEditor, setShowImageUrlEditor] = useState(false);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
   const [productPage, setProductPage] = useState(1);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -603,6 +619,12 @@ export function AdminPage() {
       setCustomerPage(customerPageCount);
     }
   }, [customerPage, customerPageCount]);
+
+  useEffect(() => {
+    if (!isNewsletterSourceMode && newsletterEditorRef.current && newsletterEditorRef.current.innerHTML !== html) {
+      newsletterEditorRef.current.innerHTML = html;
+    }
+  }, [html, isNewsletterSourceMode]);
 
   useEffect(() => {
     if (routePath === "products/new") {
@@ -786,6 +808,12 @@ export function AdminPage() {
 
     if (!adminToken) {
       setProductMessage("Sign in again to continue.");
+      return;
+    }
+
+    if (!parseList(productDraft.images).length) {
+      setShowImageUrlEditor(true);
+      setProductMessage("Add at least one product image before saving. Upload images or paste image URLs.");
       return;
     }
 
@@ -1097,6 +1125,58 @@ export function AdminPage() {
     }
   }
 
+  function syncNewsletterHtml(nextHtml: string) {
+    setHtml(nextHtml);
+    setText(plainTextFromHtml(nextHtml));
+  }
+
+  function runNewsletterCommand(command: string, value?: string) {
+    newsletterEditorRef.current?.focus();
+    document.execCommand(command, false, value);
+
+    if (newsletterEditorRef.current) {
+      syncNewsletterHtml(newsletterEditorRef.current.innerHTML);
+    }
+  }
+
+  function addNewsletterLink() {
+    const url = window.prompt("Paste link URL");
+
+    if (!url?.trim()) {
+      return;
+    }
+
+    runNewsletterCommand("createLink", url.trim());
+  }
+
+  function handleNewsletterEditorInput() {
+    if (newsletterEditorRef.current) {
+      syncNewsletterHtml(newsletterEditorRef.current.innerHTML);
+    }
+  }
+
+  function handleNewsletterPaste(event: ClipboardEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const pastedText = event.clipboardData.getData("text/plain");
+
+    if (!pastedText) {
+      return;
+    }
+
+    document.execCommand("insertText", false, pastedText);
+    handleNewsletterEditorInput();
+  }
+
+  function insertNewsletterTemplate() {
+    const template = `
+      <h2>New from SEKANAE</h2>
+      <p>A considered edit of pieces for the season ahead.</p>
+      <p><a href="https://sekanae.co/shop">Shop the latest arrivals</a></p>
+    `.trim();
+
+    syncNewsletterHtml(template);
+  }
+
   async function sendNewsletter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1116,7 +1196,7 @@ export function AdminPage() {
           subject,
           previewText: previewText || undefined,
           html,
-          text: text || undefined,
+          text: text.trim().length >= 20 ? text : undefined,
         }),
       });
 
@@ -1497,153 +1577,84 @@ export function AdminPage() {
           <Link className="admin-button-link" to={`${adminBase}/products`}>Back to products</Link>
         </div>
         <form className="admin-product-form admin-product-form-standalone" onSubmit={saveProduct}>
-          <div className="admin-form-grid">
-            <label>
-              Product ID
-              <input
-                value={productDraft.id}
-                readOnly
-                placeholder="Generated from product name"
-                required
-              />
-            </label>
-            <label>
-              Slug
-              <input
-                value={productDraft.slug}
-                readOnly
-                placeholder="Generated from product name"
-              />
-            </label>
-            <label>
-              Product name
-              <input
-                value={productDraft.name}
-                onChange={(event) => updateProductName(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Category
-              <input
-                list="admin-product-categories"
-                value={productDraft.category}
-                onChange={(event) => setProductDraft((current) => ({
-                  ...current,
-                  category: event.target.value,
-                }))}
-                placeholder="Choose or type a new category"
-                required
-              />
-              <datalist id="admin-product-categories">
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </datalist>
-            </label>
-            <label>
-              Collection
-              <input
-                value={productDraft.collection}
-                onChange={(event) => setProductDraft((current) => ({ ...current, collection: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Base price (USD)
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={productDraft.price}
-                onChange={(event) => setProductDraft((current) => ({ ...current, price: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Stock
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={productDraft.stock}
-                onChange={(event) => setProductDraft((current) => ({ ...current, stock: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Material
-              <input
-                value={productDraft.material}
-                onChange={(event) => setProductDraft((current) => ({ ...current, material: event.target.value }))}
-                required
-              />
-            </label>
-            <div className="admin-field-wide admin-control-group">
-              Colors
-              <div className="admin-color-editor">
-                {(parseList(productDraft.colors).length ? parseList(productDraft.colors) : ["#000000"]).map((color, index) => (
-                  <div className="admin-color-row" key={`${color}-${index}`}>
-                    <span className={colorSwatchClass(color)} style={colorSwatchStyle(color)} />
-                    <input
-                      type="color"
-                      value={color.startsWith("#") && color.length === 7 ? color : "#000000"}
-                      onChange={(event) => updateProductColor(index, event.target.value)}
-                      aria-label={`Color ${index + 1}`}
-                    />
-                    <strong>{color}</strong>
-                    <button type="button" onClick={() => removeProductColor(index)} disabled={parseList(productDraft.colors).length <= 1}>
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button type="button" onClick={addProductColor}>Add color</button>
-              </div>
+          <div className="admin-generated-summary">
+            <span><strong>Product ID</strong>{productDraft.id || "Generated after product name"}</span>
+            <span><strong>Slug</strong>{productDraft.slug || "Generated after product name"}</span>
+          </div>
+
+          <section className="admin-form-section">
+            <div>
+              <h3>Basic information</h3>
+              <p>Name the product and place it in the storefront.</p>
             </div>
-            <label>
-              Occasions
-              <input
-                value={productDraft.occasion}
-                onChange={(event) => setProductDraft((current) => ({ ...current, occasion: event.target.value }))}
-                placeholder="Travel, Gift, Evening"
-                required
-              />
-            </label>
-            <label>
-              Rating
-              <input
-                type="number"
-                min="0"
-                max="5"
-                step="0.1"
-                value={productDraft.rating}
-                onChange={(event) => setProductDraft((current) => ({ ...current, rating: event.target.value }))}
-              />
-            </label>
-            <label>
-              Reviews
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={productDraft.reviews}
-                onChange={(event) => setProductDraft((current) => ({ ...current, reviews: event.target.value }))}
-              />
-            </label>
-            <div className="admin-field-wide admin-control-group">
-              Images
+            <div className="admin-form-grid admin-form-grid-compact">
+              <label>
+                Product name
+                <input value={productDraft.name} onChange={(event) => updateProductName(event.target.value)} required />
+              </label>
+              <label>
+                Category
+                <input
+                  list="admin-product-categories"
+                  value={productDraft.category}
+                  onChange={(event) => setProductDraft((current) => ({ ...current, category: event.target.value }))}
+                  placeholder="Choose or type a new category"
+                  required
+                />
+                <datalist id="admin-product-categories">
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </datalist>
+              </label>
+              <label>
+                Collection
+                <input value={productDraft.collection} onChange={(event) => setProductDraft((current) => ({ ...current, collection: event.target.value }))} required />
+              </label>
+              <label>
+                Material
+                <input value={productDraft.material} onChange={(event) => setProductDraft((current) => ({ ...current, material: event.target.value }))} required />
+              </label>
+            </div>
+          </section>
+
+          <section className="admin-form-section">
+            <div>
+              <h3>Pricing and inventory</h3>
+              <p>Prices are entered in USD and converted using market settings.</p>
+            </div>
+            <div className="admin-form-grid">
+              <label>
+                Base price (USD)
+                <input type="number" min="0" step="0.01" value={productDraft.price} onChange={(event) => setProductDraft((current) => ({ ...current, price: event.target.value }))} required />
+              </label>
+              <label>
+                Stock
+                <input type="number" min="0" step="1" value={productDraft.stock} onChange={(event) => setProductDraft((current) => ({ ...current, stock: event.target.value }))} required />
+              </label>
+              <label>
+                Rating
+                <input type="number" min="0" max="5" step="0.1" value={productDraft.rating} onChange={(event) => setProductDraft((current) => ({ ...current, rating: event.target.value }))} />
+              </label>
+              <label>
+                Reviews
+                <input type="number" min="0" step="1" value={productDraft.reviews} onChange={(event) => setProductDraft((current) => ({ ...current, reviews: event.target.value }))} />
+              </label>
+            </div>
+          </section>
+
+          <section className="admin-form-section">
+            <div>
+              <h3>Media</h3>
+              <p>Upload product photos. The first image becomes the main storefront image.</p>
+            </div>
+            <div className="admin-form-stack">
               <div className="admin-media-upload">
                 <label className="admin-upload-button">
                   {isUploadingImages ? "Uploading images" : "Upload images"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={uploadProductImages}
-                    disabled={isUploadingImages}
-                  />
+                  <input type="file" accept="image/*" multiple onChange={uploadProductImages} disabled={isUploadingImages} />
                 </label>
-                <span>Images upload to Cloudinary and are saved as product URLs.</span>
+                <span>{parseList(productDraft.images).length} image{parseList(productDraft.images).length === 1 ? "" : "s"} selected</span>
               </div>
               {parseList(productDraft.images).length > 0 && (
                 <div className="admin-image-preview-grid">
@@ -1663,71 +1674,103 @@ export function AdminPage() {
                   ))}
                 </div>
               )}
-              <textarea
-                value={productDraft.images}
-                onChange={(event) => setProductDraft((current) => ({ ...current, images: event.target.value }))}
-                placeholder="Advanced fallback: one image URL per line"
-                required
-              />
+              <button className="admin-secondary-action" type="button" onClick={() => setShowImageUrlEditor((current) => !current)}>
+                {showImageUrlEditor ? "Hide image URL editor" : "Paste image URLs instead"}
+              </button>
+              {showImageUrlEditor && (
+                <textarea
+                  value={productDraft.images}
+                  onChange={(event) => setProductDraft((current) => ({ ...current, images: event.target.value }))}
+                  placeholder="One image URL per line"
+                  required
+                />
+              )}
             </div>
-            <label className="admin-field-wide">
-              Description
-              <textarea
-                value={productDraft.description}
-                onChange={(event) => setProductDraft((current) => ({ ...current, description: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Materials detail
-              <textarea
-                value={productDraft.detailsMaterials}
-                onChange={(event) => setProductDraft((current) => ({ ...current, detailsMaterials: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Dimensions
-              <textarea
-                value={productDraft.detailsDimensions}
-                onChange={(event) => setProductDraft((current) => ({ ...current, detailsDimensions: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Care
-              <textarea
-                value={productDraft.detailsCare}
-                onChange={(event) => setProductDraft((current) => ({ ...current, detailsCare: event.target.value }))}
-                required
-              />
-            </label>
-            <label>
-              Shipping
-              <textarea
-                value={productDraft.detailsShipping}
-                onChange={(event) => setProductDraft((current) => ({ ...current, detailsShipping: event.target.value }))}
-                required
-              />
-            </label>
-          </div>
-          <div className="admin-control-group admin-field-wide">
-            Product tags
-            <div className="admin-tag-picker">
-              {tagOptions.map((tag) => (
-                <button
-                  type="button"
-                  key={tag}
-                  className={parseList(productDraft.tags).includes(tag) ? "is-selected" : ""}
-                  onClick={() => toggleProductTag(tag)}
-                >
-                  {tag}
-                </button>
-              ))}
-              <button type="button" onClick={addProductTag}>Add tag</button>
+          </section>
+
+          <section className="admin-form-section">
+            <div>
+              <h3>Options and tags</h3>
+              <p>Add color choices, occasions, and merchandising labels.</p>
             </div>
-          </div>
-          <button type="submit" disabled={isSavingProduct}>
+            <div className="admin-form-stack">
+              <div className="admin-control-group">
+                Colors
+                <div className="admin-color-editor">
+                  {(parseList(productDraft.colors).length ? parseList(productDraft.colors) : ["#000000"]).map((color, index) => (
+                    <div className="admin-color-row" key={`${color}-${index}`}>
+                      <input
+                        type="color"
+                        value={color.startsWith("#") && color.length === 7 ? color : "#000000"}
+                        onChange={(event) => updateProductColor(index, event.target.value)}
+                        aria-label={`Color ${index + 1}`}
+                      />
+                      <strong>{color}</strong>
+                      <button type="button" onClick={() => removeProductColor(index)} disabled={parseList(productDraft.colors).length <= 1}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addProductColor}>Add color</button>
+                </div>
+              </div>
+              <label>
+                Occasions
+                <input
+                  value={productDraft.occasion}
+                  onChange={(event) => setProductDraft((current) => ({ ...current, occasion: event.target.value }))}
+                  placeholder="Travel, Gift, Evening"
+                  required
+                />
+              </label>
+              <div className="admin-control-group">
+                Product tags
+                <div className="admin-tag-picker">
+                  {tagOptions.map((tag) => (
+                    <button
+                      type="button"
+                      key={tag}
+                      className={parseList(productDraft.tags).includes(tag) ? "is-selected" : ""}
+                      onClick={() => toggleProductTag(tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                  <button type="button" onClick={addProductTag}>Add tag</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-form-section">
+            <div>
+              <h3>Description and details</h3>
+              <p>Copy shown on the product page.</p>
+            </div>
+            <div className="admin-form-grid admin-form-grid-details">
+              <label className="admin-field-wide">
+                Description
+                <textarea value={productDraft.description} onChange={(event) => setProductDraft((current) => ({ ...current, description: event.target.value }))} required />
+              </label>
+              <label>
+                Materials detail
+                <textarea value={productDraft.detailsMaterials} onChange={(event) => setProductDraft((current) => ({ ...current, detailsMaterials: event.target.value }))} required />
+              </label>
+              <label>
+                Dimensions
+                <textarea value={productDraft.detailsDimensions} onChange={(event) => setProductDraft((current) => ({ ...current, detailsDimensions: event.target.value }))} required />
+              </label>
+              <label>
+                Care
+                <textarea value={productDraft.detailsCare} onChange={(event) => setProductDraft((current) => ({ ...current, detailsCare: event.target.value }))} required />
+              </label>
+              <label>
+                Shipping
+                <textarea value={productDraft.detailsShipping} onChange={(event) => setProductDraft((current) => ({ ...current, detailsShipping: event.target.value }))} required />
+              </label>
+            </div>
+          </section>
+          <button className="admin-save-product-button" type="submit" disabled={isSavingProduct}>
             {isSavingProduct ? "Saving product" : "Save product"}
           </button>
         </form>
@@ -1995,14 +2038,63 @@ export function AdminPage() {
               placeholder="A short inbox preview"
             />
           </label>
-          <label>
-            Email HTML
-            <textarea
-              value={html}
-              onChange={(event) => setHtml(event.target.value)}
-              required
-            />
-          </label>
+          <div className="newsletter-editor-field">
+            <div className="newsletter-editor-heading">
+              <span>Email body</span>
+              <button type="button" onClick={insertNewsletterTemplate}>Use starter layout</button>
+            </div>
+            <div className="newsletter-toolbar" aria-label="Email formatting toolbar">
+              <button type="button" title="Heading" aria-label="Heading" onClick={() => runNewsletterCommand("formatBlock", "H2")}>
+                <Heading2 size={16} />
+              </button>
+              <button type="button" title="Paragraph" aria-label="Paragraph" onClick={() => runNewsletterCommand("formatBlock", "P")}>
+                <Pilcrow size={16} />
+              </button>
+              <button type="button" title="Bold" aria-label="Bold" onClick={() => runNewsletterCommand("bold")}>
+                <Bold size={16} />
+              </button>
+              <button type="button" title="Italic" aria-label="Italic" onClick={() => runNewsletterCommand("italic")}>
+                <Italic size={16} />
+              </button>
+              <button type="button" title="Bullet list" aria-label="Bullet list" onClick={() => runNewsletterCommand("insertUnorderedList")}>
+                <List size={16} />
+              </button>
+              <button type="button" title="Numbered list" aria-label="Numbered list" onClick={() => runNewsletterCommand("insertOrderedList")}>
+                <ListOrdered size={16} />
+              </button>
+              <button type="button" title="Add link" aria-label="Add link" onClick={addNewsletterLink}>
+                <Link2 size={16} />
+              </button>
+              <button
+                type="button"
+                title="HTML source"
+                aria-label="HTML source"
+                aria-pressed={isNewsletterSourceMode}
+                onClick={() => setIsNewsletterSourceMode((current) => !current)}
+              >
+                <Code2 size={16} />
+              </button>
+            </div>
+            {isNewsletterSourceMode ? (
+              <textarea
+                value={html}
+                onChange={(event) => syncNewsletterHtml(event.target.value)}
+                required
+              />
+            ) : (
+              <div
+                ref={newsletterEditorRef}
+                className="newsletter-wysiwyg"
+                contentEditable
+                role="textbox"
+                aria-label="Email body"
+                onInput={handleNewsletterEditorInput}
+                onPaste={handleNewsletterPaste}
+                suppressContentEditableWarning
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
+            )}
+          </div>
           <label>
             Plain text fallback
             <textarea
@@ -2010,6 +2102,10 @@ export function AdminPage() {
               onChange={(event) => setText(event.target.value)}
             />
           </label>
+          <div className="newsletter-preview">
+            <span>Email preview</span>
+            <div dangerouslySetInnerHTML={{ __html: html }} />
+          </div>
           <button type="submit" disabled={isSendingNewsletter}>
             <Send size={16} /> {isSendingNewsletter ? "Sending" : "Send to subscribers"}
           </button>
