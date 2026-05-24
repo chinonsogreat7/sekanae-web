@@ -12,7 +12,7 @@ const envSchema = z.object({
   ADMIN_API_KEY: z.string().min(16).optional(),
   DATABASE_URL: z.string().url().optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
-  EMAIL_FROM: z.string().default("Sekanae <orders@sekenae.co>"),
+  EMAIL_FROM: z.string().default("Sekanae <orders@sekanae.co>"),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_LOGIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD_HASH: z.string().min(1).optional(),

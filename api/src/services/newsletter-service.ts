@@ -27,6 +27,10 @@ export type SendNewsletterCampaignInput = {
   text?: string;
 };
 
+export type SendNewsletterCampaignResult = Awaited<ReturnType<typeof finalizeNewsletterCampaign>> & {
+  failureReasons: string[];
+};
+
 export class NewsletterServiceError extends Error {
   constructor(
     public readonly code: "DATABASE_REQUIRED" | "NO_SUBSCRIBERS",
@@ -83,14 +87,45 @@ function withUnsubscribeText(text: string, subscriber: NewsletterSubscriber) {
   return `${text}\n\nYou are receiving this because ${subscriber.email} opted in to SEKANAE updates.\nUnsubscribe: ${unsubscribeUrl}`;
 }
 
+async function sendNewsletterWelcomeEmail(subscriber: NewsletterSubscriber) {
+  const greeting = subscriber.name ? `Hello ${escapeHtml(subscriber.name)},` : "Hello,";
+  const body = `
+    <p>${greeting}</p>
+    <p>You are now subscribed to SEKANAE updates. We will send considered arrivals, edits, and client notes to this inbox.</p>
+    <p style="margin:24px 0;">
+      <a href="${config.WEB_ORIGIN}/shop" style="display:inline-block;background:#231f1a;color:#fff;text-decoration:none;padding:12px 18px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+        Explore the collection
+      </a>
+    </p>
+  `;
+  const text = "You are now subscribed to SEKANAE updates. We will send considered arrivals, edits, and client notes to this inbox.";
+
+  return sendEmail({
+    to: subscriber.email,
+    subject: "Welcome to SEKANAE",
+    html: withNewsletterFrame({
+      subject: "Welcome to SEKANAE",
+      previewText: "You are now subscribed to SEKANAE updates.",
+      html: body,
+      subscriber,
+    }),
+    text: withUnsubscribeText(text, subscriber),
+    template: "newsletter_welcome",
+  });
+}
+
 export async function subscribeToNewsletter(input: SubscribeNewsletterInput) {
   assertDatabase();
 
-  return upsertNewsletterSubscriber({
+  const subscriber = await upsertNewsletterSubscriber({
     email: input.email,
     name: input.name,
     source: input.source,
   });
+
+  await sendNewsletterWelcomeEmail(subscriber);
+
+  return subscriber;
 }
 
 export async function unsubscribeFromNewsletter(input: { email?: string; token?: string }) {
@@ -115,7 +150,7 @@ export async function getNewsletterAudienceStats() {
   return getNewsletterStats();
 }
 
-export async function sendNewsletterCampaign(input: SendNewsletterCampaignInput) {
+export async function sendNewsletterCampaign(input: SendNewsletterCampaignInput): Promise<SendNewsletterCampaignResult> {
   assertDatabase();
 
   const recipients = await getSubscribedNewsletterRecipients();
@@ -135,6 +170,7 @@ export async function sendNewsletterCampaign(input: SendNewsletterCampaignInput)
 
   let sentCount = 0;
   let failedCount = 0;
+  const failureReasons = new Set<string>();
 
   for (const subscriber of recipients) {
     const result = await sendEmail({
@@ -154,6 +190,9 @@ export async function sendNewsletterCampaign(input: SendNewsletterCampaignInput)
       sentCount += 1;
     } else {
       failedCount += 1;
+      if (result.errorMessage) {
+        failureReasons.add(result.errorMessage);
+      }
     }
 
     await recordNewsletterDelivery({
@@ -165,9 +204,14 @@ export async function sendNewsletterCampaign(input: SendNewsletterCampaignInput)
     });
   }
 
-  return finalizeNewsletterCampaign({
+  const finalizedCampaign = await finalizeNewsletterCampaign({
     campaignId: campaign.id,
     sentCount,
     failedCount,
   });
+
+  return {
+    ...finalizedCampaign,
+    failureReasons: [...failureReasons],
+  };
 }

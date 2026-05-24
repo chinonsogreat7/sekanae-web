@@ -56,6 +56,7 @@ type NewsletterCampaign = {
   recipientCount: number;
   sentCount: number;
   failedCount: number;
+  failureReasons?: string[];
 };
 
 type AdminSessionResponse = {
@@ -2112,10 +2113,19 @@ export function AdminPage() {
         </form>
         {newsletterMessage && <p className="admin-status">{newsletterMessage}</p>}
         {campaignResult && (
-          <p className="admin-status">
-            Campaign {campaignResult.id.slice(0, 8)}: {campaignResult.sentCount}/{campaignResult.recipientCount} sent,
-            {" "}{campaignResult.failedCount} failed.
-          </p>
+          <div className="admin-status newsletter-send-result">
+            <p>
+              Campaign {campaignResult.id.slice(0, 8)}: {campaignResult.sentCount}/{campaignResult.recipientCount} sent,
+              {" "}{campaignResult.failedCount} failed.
+            </p>
+            {campaignResult.failureReasons?.length ? (
+              <ul>
+                {campaignResult.failureReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         )}
       </article>
     );

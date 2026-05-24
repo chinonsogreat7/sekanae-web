@@ -2288,6 +2288,17 @@ p {
   justify-content: center;
 }
 
+.newsletter-send-result p {
+  margin: 0;
+}
+
+.newsletter-send-result ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #8d3428;
+  line-height: 1.5;
+}
+
 .admin-status {
   margin-top: 14px;
   color: var(--muted);
