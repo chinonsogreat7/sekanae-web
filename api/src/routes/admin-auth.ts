@@ -96,7 +96,7 @@ export async function registerAdminAuthRoutes(app: FastifyInstance) {
     },
   }, async (request, reply) => {
     const credentials = adminLoginSchema.parse(request.body);
-    const result = authenticateAdminCredentials(credentials.email, credentials.password);
+    const result = await authenticateAdminCredentials(credentials.email, credentials.password);
 
     if (!result.ok) {
       return reply.status(result.statusCode >= 500 ? 500 : 401).send({

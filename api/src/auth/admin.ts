@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { config } from "../config.js";
 import { hasDatabase } from "../db/pool.js";
+import { getAdminPasswordOverrideHash } from "../repositories/security-repository.js";
 
 type AdminAuthResult =
   | {
@@ -29,6 +30,10 @@ const passwordHashAlgorithm = "pbkdf2_sha256";
 
 function getAdminLoginEmail() {
   return config.ADMIN_LOGIN_EMAIL ?? config.ADMIN_EMAIL;
+}
+
+export function getConfiguredAdminEmail() {
+  return getAdminLoginEmail();
 }
 
 function safeEqual(value: string, expected: string) {
@@ -99,7 +104,19 @@ function verifyPasswordHash(password: string, storedHash: string) {
   return safeEqual(derivedHash, hash);
 }
 
-function verifyAdminPassword(password: string) {
+async function verifyAdminPassword(password: string) {
+  if (hasDatabase()) {
+    try {
+      const overrideHash = await getAdminPasswordOverrideHash();
+
+      if (overrideHash) {
+        return verifyPasswordHash(password, overrideHash);
+      }
+    } catch {
+      // Fall back to the env-based hash if the override table has not been migrated yet.
+    }
+  }
+
   if (config.ADMIN_PASSWORD_HASH) {
     return verifyPasswordHash(password, config.ADMIN_PASSWORD_HASH);
   }
@@ -150,7 +167,27 @@ function getAdminAuthError(request: FastifyRequest) {
   return undefined;
 }
 
-export function authenticateAdminCredentials(email: string, password: string): AdminAuthResult {
+export function getAdminActorEmail(request: FastifyRequest) {
+  const authHeader = request.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : undefined;
+
+  if (!token) return getAdminLoginEmail();
+  if (config.ADMIN_API_KEY && safeEqual(token, config.ADMIN_API_KEY)) return getAdminLoginEmail();
+
+  const [prefix, payloadPart, signature] = token.split(".");
+
+  if (prefix !== adminSessionPrefix || !payloadPart || !signature) return getAdminLoginEmail();
+  if (!verifyAdminSessionToken(token)) return getAdminLoginEmail();
+
+  try {
+    const payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8")) as Partial<AdminSessionPayload>;
+    return payload.email ?? getAdminLoginEmail();
+  } catch {
+    return getAdminLoginEmail();
+  }
+}
+
+export async function authenticateAdminCredentials(email: string, password: string): Promise<AdminAuthResult> {
   if (!config.ADMIN_API_KEY) {
     return {
       ok: false,
@@ -171,7 +208,7 @@ export function authenticateAdminCredentials(email: string, password: string): A
     };
   }
 
-  if (email.trim().toLowerCase() !== expectedEmail.toLowerCase() || !verifyAdminPassword(password)) {
+  if (email.trim().toLowerCase() !== expectedEmail.toLowerCase() || !(await verifyAdminPassword(password))) {
     return {
       ok: false,
       statusCode: 401,

@@ -1,15 +1,20 @@
 import {
+  Activity,
   BarChart3,
   Boxes,
   ClipboardList,
   Edit3,
   Eye,
   Globe2,
+  KeyRound,
+  Layers3,
+  LifeBuoy,
   MailCheck,
   PackagePlus,
   Search,
   Send,
   Settings,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Users,
@@ -18,8 +23,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getProducts } from "../api/client";
 import { getApiBaseUrl } from "../api/config";
-import { products as fallbackProducts, type CurrencyCode, type Product, type ProductCategory } from "../data/catalog";
-import { adminMetrics } from "../data/editorial";
+import { products as fallbackProducts, type Collection, type CurrencyCode, type Product, type ProductCategory } from "../data/catalog";
 import { formatMoney } from "../utils/money";
 
 const apiBaseUrl = getApiBaseUrl();
@@ -38,6 +42,9 @@ const productCategories: ProductCategory[] = [
 
 const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
+const conciergeStatuses = ["open", "in_progress", "resolved", "closed"] as const;
+const replyStatuses = ["not_replied", "reply_needed", "replied"] as const;
+const currencyOptions: CurrencyCode[] = ["USD", "GBP", "EUR", "NGN", "AED"];
 
 type NewsletterStats = {
   subscribed: number;
@@ -150,6 +157,87 @@ type CustomerProfile = {
   orders?: Order[];
 };
 
+type DashboardData = {
+  metrics: {
+    revenue: number;
+    orders: number;
+    customers: number;
+    lowStock: number;
+    newsletterSubscribers: number;
+  };
+  recentOrders: Array<{
+    id: string;
+    customerName: string;
+    customerEmail: string;
+    currency: CurrencyCode;
+    total: number;
+    status: string;
+    createdAt: string;
+  }>;
+  lowInventory: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    category: string;
+    stock: number;
+  }>;
+};
+
+type CollectionDraft = Collection & {
+  sortOrder: string;
+};
+
+type ConciergeStatus = typeof conciergeStatuses[number];
+type ReplyStatus = typeof replyStatuses[number];
+
+type ConciergeRequest = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  topic: string;
+  message: string;
+  source?: string;
+  status: ConciergeStatus;
+  replyStatus: ReplyStatus;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type StoreSettings = {
+  defaultCurrency: CurrencyCode;
+  defaultMarketCountry: string;
+  defaultShippingAmount: number;
+  vatRate: number;
+  vatIncluded: boolean;
+  storeContactEmail?: string;
+  apiPublicUrl: string;
+  webOrigin: string;
+  updatedAt?: string;
+  updatedBy?: string;
+};
+
+type SettingsHealth = {
+  database: boolean;
+  stripe: boolean;
+  email: boolean;
+  adminEmail: boolean;
+  apiPublicUrl: string;
+  webOrigin: string;
+};
+
+type AuditLog = {
+  id: string;
+  actorEmail: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  summary: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+
 type ApiPayload<TData> = {
   data?: TData;
   meta?: {
@@ -203,6 +291,24 @@ function createProductDraft(): ProductDraft {
     stock: "0",
     isNew: false,
     isBridalPreview: false,
+  };
+}
+
+function createCollectionDraft(): CollectionDraft {
+  return {
+    id: `collection-${Date.now().toString(36)}`,
+    title: "",
+    description: "",
+    image: "",
+    cta: "",
+    sortOrder: "0",
+  };
+}
+
+function collectionToDraft(collection: Collection, sortOrder = 0): CollectionDraft {
+  return {
+    ...collection,
+    sortOrder: String(sortOrder),
   };
 }
 
@@ -298,10 +404,13 @@ function getPageTitle(routePath: string) {
   if (routePath === "orders") return "Orders";
   if (routePath === "customers") return "Customers";
   if (routePath.startsWith("customers/")) return "Customer Detail";
+  if (routePath === "collections") return "Collections";
+  if (routePath === "concierge") return "Concierge";
   if (routePath === "newsletter") return "Newsletter";
   if (routePath === "content") return "Content";
   if (routePath === "markets") return "Markets";
   if (routePath === "settings") return "Settings";
+  if (routePath === "audit") return "Audit Log";
   return "Dashboard";
 }
 
@@ -352,6 +461,25 @@ export function AdminPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [customersMessage, setCustomersMessage] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [dashboardMessage, setDashboardMessage] = useState<string | null>(null);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionDraft, setCollectionDraft] = useState<CollectionDraft>(() => createCollectionDraft());
+  const [collectionMessage, setCollectionMessage] = useState<string | null>(null);
+  const [conciergeRequests, setConciergeRequests] = useState<ConciergeRequest[]>([]);
+  const [conciergeFilter, setConciergeFilter] = useState<"" | ConciergeStatus>("");
+  const [conciergeMessage, setConciergeMessage] = useState<string | null>(null);
+  const [settingsDraft, setSettingsDraft] = useState<StoreSettings | null>(null);
+  const [settingsHealth, setSettingsHealth] = useState<SettingsHealth | null>(null);
+  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditMessage, setAuditMessage] = useState<string | null>(null);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [securityMessage, setSecurityMessage] = useState<string | null>(null);
 
   const selectedProduct = useMemo(() => {
     if (!routeProductId) return undefined;
@@ -405,6 +533,11 @@ export function AdminPage() {
     void readProducts();
     void readOrders();
     void readCustomers();
+    void readDashboard();
+    void readCollections();
+    void readConcierge();
+    void readSettings();
+    void readAudit();
     void readNewsletterStats();
     // Dashboard data should hydrate only after auth changes; filters refresh through Apply.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -504,6 +637,10 @@ export function AdminPage() {
     setNewsletterStats(null);
     setCampaignResult(null);
     setSelectedOrder(null);
+    setDashboardData(null);
+    setSettingsDraft(null);
+    setSettingsHealth(null);
+    setAuditLogs([]);
   }
 
   async function readProducts() {
@@ -516,6 +653,82 @@ export function AdminPage() {
       setAdminProducts(fallbackProducts);
       setInventoryDrafts(Object.fromEntries(fallbackProducts.map((product) => [product.id, String(product.stock)])));
       setProductMessage("Live products are unavailable, so the studio is showing the local fallback catalog.");
+    }
+  }
+
+  async function readDashboard() {
+    if (!adminToken) {
+      return;
+    }
+
+    try {
+      const payload = await readAdmin<DashboardData>("/api/admin/dashboard");
+      setDashboardData(payload.data);
+      setDashboardMessage(null);
+    } catch (error) {
+      setDashboardData(null);
+      setDashboardMessage(error instanceof Error ? error.message : "Dashboard metrics are unavailable.");
+    }
+  }
+
+  async function readCollections() {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/collections`);
+      const payload = await response.json() as ApiPayload<Collection[]>;
+
+      if (!response.ok || !payload.data) {
+        throw new Error(payload.error?.message ?? "Collections are unavailable.");
+      }
+
+      setCollections(payload.data);
+      setCollectionMessage(null);
+    } catch (error) {
+      setCollections([]);
+      setCollectionMessage(error instanceof Error ? error.message : "Collections are unavailable.");
+    }
+  }
+
+  async function saveCollection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCollectionMessage(null);
+
+    try {
+      const payload = await readAdmin<Collection>("/api/admin/collections", {
+        method: "POST",
+        body: JSON.stringify({
+          id: collectionDraft.id.trim(),
+          title: collectionDraft.title.trim(),
+          description: collectionDraft.description.trim(),
+          image: collectionDraft.image.trim(),
+          cta: collectionDraft.cta.trim(),
+          sortOrder: Number(collectionDraft.sortOrder),
+        }),
+      });
+
+      setCollectionMessage(`${payload.data.title} has been saved.`);
+      setCollectionDraft(collectionToDraft(payload.data));
+      await readCollections();
+      await readAudit();
+    } catch (error) {
+      setCollectionMessage(error instanceof Error ? error.message : "Collection save failed.");
+    }
+  }
+
+  async function archiveCollection(collectionId: string) {
+    if (!window.confirm("Archive this collection?")) {
+      return;
+    }
+
+    try {
+      await readAdmin<{ archived: boolean }>(`/api/admin/collections/${encodeURIComponent(collectionId)}`, {
+        method: "DELETE",
+      });
+      setCollectionMessage("Collection archived.");
+      setCollectionDraft(createCollectionDraft());
+      await readCollections();
+      await readAudit();
+    } catch (error) {
+      setCollectionMessage(error instanceof Error ? error.message : "Collection archive failed.");
     }
   }
 
@@ -540,6 +753,8 @@ export function AdminPage() {
       setProductMessage(`${payload.data.name} has been saved.`);
       setProductDraft(productToDraft(payload.data));
       await readProducts();
+      await readDashboard();
+      await readAudit();
       navigate(`${adminBase}/products/${encodeURIComponent(payload.data.id)}`);
     } catch (error) {
       setProductMessage(error instanceof Error ? error.message : "Product save failed.");
@@ -559,6 +774,8 @@ export function AdminPage() {
       });
       setProductMessage("Product archived.");
       await readProducts();
+      await readDashboard();
+      await readAudit();
       if (routePath.startsWith("products/") && routePath !== "products") {
         navigate(`${adminBase}/products`);
       }
@@ -582,6 +799,8 @@ export function AdminPage() {
       });
       setProductMessage(`${payload.data.name} inventory updated to ${payload.data.stock}.`);
       await readProducts();
+      await readDashboard();
+      await readAudit();
     } catch (error) {
       setProductMessage(error instanceof Error ? error.message : "Inventory update failed.");
     }
@@ -697,6 +916,8 @@ export function AdminPage() {
       setOrderNotes(payload.data.notes ?? "");
       setOrdersMessage("Order updated.");
       await readOrders();
+      await readDashboard();
+      await readAudit();
     } catch (error) {
       setOrdersMessage(error instanceof Error ? error.message : "Order update failed.");
     }
@@ -750,39 +971,224 @@ export function AdminPage() {
     }
   }
 
+  async function readConcierge() {
+    if (!adminToken) {
+      return;
+    }
+
+    const query = new URLSearchParams({ limit: "80" });
+
+    if (conciergeFilter) {
+      query.set("status", conciergeFilter);
+    }
+
+    try {
+      const payload = await readAdmin<ConciergeRequest[]>(`/api/admin/concierge?${query.toString()}`);
+      setConciergeRequests(payload.data);
+      setConciergeMessage(payload.data.length ? null : "No concierge requests match this view yet.");
+    } catch (error) {
+      setConciergeRequests([]);
+      setConciergeMessage(error instanceof Error ? error.message : "Concierge requests are unavailable.");
+    }
+  }
+
+  async function updateConciergeRequest(requestId: string, patch: Partial<Pick<ConciergeRequest, "status" | "replyStatus" | "adminNotes">>) {
+    try {
+      await readAdmin<ConciergeRequest>(`/api/admin/concierge/${encodeURIComponent(requestId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setConciergeMessage("Concierge request updated.");
+      await readConcierge();
+      await readAudit();
+    } catch (error) {
+      setConciergeMessage(error instanceof Error ? error.message : "Concierge update failed.");
+    }
+  }
+
+  async function readSettings() {
+    if (!adminToken) {
+      return;
+    }
+
+    try {
+      const [settingsPayload, healthPayload] = await Promise.all([
+        readAdmin<StoreSettings>("/api/admin/settings"),
+        readAdmin<SettingsHealth>("/api/admin/settings/health"),
+      ]);
+      setSettingsDraft(settingsPayload.data);
+      setSettingsHealth(healthPayload.data);
+      setSettingsMessage(null);
+    } catch (error) {
+      setSettingsDraft(null);
+      setSettingsHealth(null);
+      setSettingsMessage(error instanceof Error ? error.message : "Settings are unavailable.");
+    }
+  }
+
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!settingsDraft) {
+      return;
+    }
+
+    try {
+      const payload = await readAdmin<StoreSettings>("/api/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          ...settingsDraft,
+          defaultMarketCountry: settingsDraft.defaultMarketCountry.toUpperCase(),
+          defaultShippingAmount: Number(settingsDraft.defaultShippingAmount),
+          vatRate: Number(settingsDraft.vatRate),
+          storeContactEmail: settingsDraft.storeContactEmail || undefined,
+        }),
+      });
+      setSettingsDraft(payload.data);
+      setSettingsMessage("Store settings saved.");
+      await readSettings();
+      await readAudit();
+    } catch (error) {
+      setSettingsMessage(error instanceof Error ? error.message : "Settings save failed.");
+    }
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSecurityMessage(null);
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setSecurityMessage("New password confirmation does not match.");
+      return;
+    }
+
+    try {
+      await readAdmin<{ changed: boolean }>("/api/admin/security/password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      });
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setSecurityMessage("Admin password changed.");
+      await readAudit();
+    } catch (error) {
+      setSecurityMessage(error instanceof Error ? error.message : "Password change failed.");
+    }
+  }
+
+  async function readAudit() {
+    if (!adminToken) {
+      return;
+    }
+
+    try {
+      const payload = await readAdmin<AuditLog[]>("/api/admin/audit?limit=80");
+      setAuditLogs(payload.data);
+      setAuditMessage(payload.data.length ? null : "No audit events have been recorded yet.");
+    } catch (error) {
+      setAuditLogs([]);
+      setAuditMessage(error instanceof Error ? error.message : "Audit logs are unavailable.");
+    }
+  }
+
   function renderDashboard() {
+    const metrics = dashboardData?.metrics;
+    const dashboardMetrics = [
+      {
+        label: "Revenue",
+        value: metrics ? formatMoney(metrics.revenue, "USD") : "-",
+        note: "Confirmed order value",
+      },
+      {
+        label: "Orders",
+        value: String(metrics?.orders ?? "-"),
+        note: "All-time order count",
+      },
+      {
+        label: "Customers",
+        value: String(metrics?.customers ?? "-"),
+        note: "Orders plus newsletter",
+      },
+      {
+        label: "Low Stock",
+        value: String(metrics?.lowStock ?? "-"),
+        note: "Inventory at 5 or below",
+      },
+      {
+        label: "Subscribers",
+        value: String(metrics?.newsletterSubscribers ?? "-"),
+        note: "Newsletter-ready audience",
+      },
+    ];
+
     return (
       <>
         <section className="admin-metrics">
-          {adminMetrics.map((metric) => (
+          {dashboardMetrics.map((metric) => (
             <article key={metric.label}>
               <p>{metric.label}</p>
               <strong>{metric.value}</strong>
-              <span>{metric.trend}</span>
+              <span>{metric.note}</span>
             </article>
           ))}
         </section>
-        <section className="admin-grid">
+        {dashboardMessage && <p className="admin-status">{dashboardMessage}</p>}
+        <section className="admin-dashboard-widgets">
           <article className="admin-panel">
             <div className="panel-heading">
-              <h2>Catalog Snapshot</h2>
-              <Link className="admin-button-link" to={`${adminBase}/products`}>Open products</Link>
-            </div>
-            <p className="admin-status">{adminProducts.length} active catalog records loaded for management.</p>
-          </article>
-          <article className="admin-panel">
-            <div className="panel-heading">
-              <h2>Order Queue</h2>
+              <h2>Recent Orders</h2>
               <Link className="admin-button-link" to={`${adminBase}/orders`}>Open orders</Link>
             </div>
-            <p className="admin-status">{ordersTotal} orders in the current operational view.</p>
+            <div className="admin-widget-list">
+              {(dashboardData?.recentOrders ?? []).map((order) => (
+                <button key={order.id} type="button" onClick={() => {
+                  void readOrderDetail(order.id);
+                  navigate(`${adminBase}/orders`);
+                }}>
+                  <span>
+                    <strong>{order.customerName}</strong>
+                    <small>{order.customerEmail}</small>
+                  </span>
+                  <span>{formatMoney(order.total, order.currency)}</span>
+                  <em>{order.status}</em>
+                </button>
+              ))}
+              {!dashboardData?.recentOrders.length && <p className="admin-empty">No orders yet.</p>}
+            </div>
           </article>
           <article className="admin-panel">
             <div className="panel-heading">
-              <h2>Customers</h2>
-              <Link className="admin-button-link" to={`${adminBase}/customers`}>Open customers</Link>
+              <h2>Low Inventory</h2>
+              <Link className="admin-button-link" to={`${adminBase}/products`}>Open products</Link>
             </div>
-            <p className="admin-status">{customersTotal} known customer records from orders and newsletter signups.</p>
+            <div className="admin-widget-list admin-inventory-watch">
+              {(dashboardData?.lowInventory ?? []).map((product) => (
+                <Link key={product.id} to={`${adminBase}/products/${encodeURIComponent(product.id)}`}>
+                  <span>
+                    <strong>{product.name}</strong>
+                    <small>{product.category}</small>
+                  </span>
+                  <em>{product.stock} left</em>
+                </Link>
+              ))}
+              {!dashboardData?.lowInventory.length && <p className="admin-empty">Inventory looks healthy.</p>}
+            </div>
+          </article>
+          <article className="admin-panel">
+            <div className="panel-heading">
+              <h2>Operations</h2>
+              <button type="button" onClick={() => { void readDashboard(); void readAudit(); }}>
+                <Activity size={16} /> Refresh
+              </button>
+            </div>
+            <div className="admin-ops-grid">
+              <Link to={`${adminBase}/collections`}><Layers3 size={18} /> Collections</Link>
+              <Link to={`${adminBase}/concierge`}><LifeBuoy size={18} /> Concierge</Link>
+              <Link to={`${adminBase}/customers`}><Users size={18} /> Customers</Link>
+              <Link to={`${adminBase}/settings`}><ShieldCheck size={18} /> Settings</Link>
+            </div>
           </article>
         </section>
       </>
@@ -1386,6 +1792,386 @@ export function AdminPage() {
     );
   }
 
+  function renderCollections() {
+    return (
+      <section className="admin-grid admin-grid-wide">
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Collections Manager</h2>
+              <p className="admin-status admin-status-tight">Create landing groups, edit imagery, and control display order.</p>
+            </div>
+            <button type="button" onClick={() => setCollectionDraft(createCollectionDraft())}>
+              <PackagePlus size={16} /> New collection
+            </button>
+          </div>
+          <form className="admin-product-form admin-product-form-standalone" onSubmit={saveCollection}>
+            <div className="admin-form-grid">
+              <label>
+                Collection ID
+                <input
+                  value={collectionDraft.id}
+                  onChange={(event) => setCollectionDraft((current) => ({ ...current, id: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Title
+                <input
+                  value={collectionDraft.title}
+                  onChange={(event) => setCollectionDraft((current) => ({ ...current, title: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                CTA
+                <input
+                  value={collectionDraft.cta}
+                  onChange={(event) => setCollectionDraft((current) => ({ ...current, cta: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Sort order
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={collectionDraft.sortOrder}
+                  onChange={(event) => setCollectionDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                />
+              </label>
+              <label className="admin-field-wide">
+                Image URL
+                <input
+                  value={collectionDraft.image}
+                  onChange={(event) => setCollectionDraft((current) => ({ ...current, image: event.target.value }))}
+                  required
+                />
+              </label>
+              <label className="admin-field-wide">
+                Description
+                <textarea
+                  value={collectionDraft.description}
+                  onChange={(event) => setCollectionDraft((current) => ({ ...current, description: event.target.value }))}
+                  required
+                />
+              </label>
+            </div>
+            <button type="submit">Save collection</button>
+          </form>
+          {collectionMessage && <p className="admin-status">{collectionMessage}</p>}
+        </article>
+
+        <article className="admin-panel admin-panel-wide">
+          <div className="panel-heading">
+            <h2>Live Collections</h2>
+            <button type="button" onClick={readCollections}>Refresh</button>
+          </div>
+          <div className="admin-collection-grid">
+            {collections.map((collection, index) => (
+              <article key={collection.id}>
+                <img src={collection.image} alt="" />
+                <div>
+                  <strong>{collection.title}</strong>
+                  <p>{collection.description}</p>
+                  <small>{collection.cta}</small>
+                </div>
+                <div className="admin-row-actions">
+                  <button type="button" onClick={() => setCollectionDraft(collectionToDraft(collection, index))}>Edit</button>
+                  <button className="admin-danger" type="button" onClick={() => archiveCollection(collection.id)}>
+                    <Trash2 size={14} /> Archive
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!collections.length && <p className="admin-empty">No collections are available yet.</p>}
+          </div>
+        </article>
+      </section>
+    );
+  }
+
+  function renderConcierge() {
+    return (
+      <section className="admin-grid admin-grid-wide">
+        <article className="admin-panel admin-panel-wide">
+          <div className="panel-heading">
+            <div>
+              <h2>Concierge Requests</h2>
+              <p className="admin-status admin-status-tight">Track contact form messages, replies, internal notes, and resolution state.</p>
+            </div>
+            <button type="button" onClick={readConcierge}>Refresh</button>
+          </div>
+          <form className="admin-filters" onSubmit={(event) => { event.preventDefault(); void readConcierge(); }}>
+            <label>
+              Status
+              <select value={conciergeFilter} onChange={(event) => setConciergeFilter(event.target.value as "" | ConciergeStatus)}>
+                <option value="">All</option>
+                {conciergeStatuses.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+            <button type="submit">Apply</button>
+          </form>
+          <div className="admin-request-list">
+            {conciergeRequests.map((request) => (
+              <article className="admin-request-card" key={request.id}>
+                <div>
+                  <strong>{request.name}</strong>
+                  <span>{request.email}{request.phone ? ` / ${request.phone}` : ""}</span>
+                  <small>{formatDate(request.createdAt)} / {request.source ?? "Website form"}</small>
+                </div>
+                <div>
+                  <h3>{request.topic}</h3>
+                  <p>{request.message}</p>
+                </div>
+                <label>
+                  Status
+                  <select
+                    value={request.status}
+                    onChange={(event) => updateConciergeRequest(request.id, { status: event.target.value as ConciergeStatus })}
+                  >
+                    {conciergeStatuses.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Reply
+                  <select
+                    value={request.replyStatus}
+                    onChange={(event) => updateConciergeRequest(request.id, { replyStatus: event.target.value as ReplyStatus })}
+                  >
+                    {replyStatuses.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="admin-field-wide">
+                  Internal notes
+                  <textarea
+                    defaultValue={request.adminNotes ?? ""}
+                    onBlur={(event) => {
+                      if (event.currentTarget.value !== (request.adminNotes ?? "")) {
+                        void updateConciergeRequest(request.id, { adminNotes: event.currentTarget.value });
+                      }
+                    }}
+                  />
+                </label>
+              </article>
+            ))}
+          </div>
+          {conciergeMessage && <p className="admin-status">{conciergeMessage}</p>}
+        </article>
+      </section>
+    );
+  }
+
+  function renderAuditLog(limit?: number) {
+    const visibleLogs = typeof limit === "number" ? auditLogs.slice(0, limit) : auditLogs;
+
+    return (
+      <div className="admin-audit-list">
+        {visibleLogs.map((log) => (
+          <article key={log.id}>
+            <span>{formatDate(log.createdAt)}</span>
+            <strong>{log.summary}</strong>
+            <small>{log.actorEmail} / {log.entityType}{log.entityId ? ` / ${log.entityId}` : ""}</small>
+          </article>
+        ))}
+        {!visibleLogs.length && <p className="admin-empty">{auditMessage ?? "No audit events have been recorded yet."}</p>}
+      </div>
+    );
+  }
+
+  function renderSettings() {
+    return (
+      <section className="admin-grid admin-grid-wide">
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Store Settings</h2>
+              <p className="admin-status admin-status-tight">Defaults used by checkout, tax, shipping, markets, and operational emails.</p>
+            </div>
+            <button type="button" onClick={readSettings}>Refresh</button>
+          </div>
+          {settingsDraft ? (
+            <form className="admin-product-form admin-product-form-standalone" onSubmit={saveSettings}>
+              <div className="admin-form-grid">
+                <label>
+                  Currency
+                  <select
+                    value={settingsDraft.defaultCurrency}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, defaultCurrency: event.target.value as CurrencyCode }) : current)}
+                  >
+                    {currencyOptions.map((currency) => (
+                      <option key={currency} value={currency}>{currency}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Market country
+                  <input
+                    value={settingsDraft.defaultMarketCountry}
+                    maxLength={2}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, defaultMarketCountry: event.target.value.toUpperCase() }) : current)}
+                  />
+                </label>
+                <label>
+                  Shipping amount
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={settingsDraft.defaultShippingAmount}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, defaultShippingAmount: Number(event.target.value) }) : current)}
+                  />
+                </label>
+                <label>
+                  VAT rate
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={settingsDraft.vatRate}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, vatRate: Number(event.target.value) }) : current)}
+                  />
+                </label>
+                <label className="admin-field-wide">
+                  Store contact email
+                  <input
+                    type="email"
+                    value={settingsDraft.storeContactEmail ?? ""}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, storeContactEmail: event.target.value }) : current)}
+                  />
+                </label>
+                <label className="admin-field-wide">
+                  API public URL
+                  <input
+                    value={settingsDraft.apiPublicUrl}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, apiPublicUrl: event.target.value }) : current)}
+                  />
+                </label>
+                <label className="admin-field-wide">
+                  Web origin
+                  <input
+                    value={settingsDraft.webOrigin}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, webOrigin: event.target.value }) : current)}
+                  />
+                </label>
+              </div>
+              <div className="admin-checkboxes">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={settingsDraft.vatIncluded}
+                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, vatIncluded: event.target.checked }) : current)}
+                  />
+                  Prices include VAT
+                </label>
+              </div>
+              <button type="submit">Save settings</button>
+            </form>
+          ) : (
+            <p className="admin-empty">Settings are loading.</p>
+          )}
+          {settingsMessage && <p className="admin-status">{settingsMessage}</p>}
+        </article>
+
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <h2>Environment Health</h2>
+          </div>
+          <div className="admin-health-grid">
+            {[
+              ["Database", settingsHealth?.database],
+              ["Stripe", settingsHealth?.stripe],
+              ["Email", settingsHealth?.email],
+              ["Admin Email", settingsHealth?.adminEmail],
+            ].map(([label, healthy]) => (
+              <span key={String(label)} className={healthy ? "is-healthy" : "is-missing"}>
+                <strong>{label}</strong>{healthy ? "Ready" : "Missing"}
+              </span>
+            ))}
+          </div>
+          {settingsHealth && (
+            <p className="admin-status">
+              API: {settingsHealth.apiPublicUrl}<br />
+              Web: {settingsHealth.webOrigin}
+            </p>
+          )}
+        </article>
+
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <h2>Admin Security</h2>
+          </div>
+          <form className="admin-product-form admin-product-form-standalone" onSubmit={changePassword}>
+            <div className="admin-form-grid admin-form-grid-compact">
+              <label>
+                Current password
+                <input
+                  type="password"
+                  value={passwordForm.currentPassword}
+                  onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                New password
+                <input
+                  type="password"
+                  value={passwordForm.newPassword}
+                  onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                  minLength={12}
+                  required
+                />
+              </label>
+              <label>
+                Confirm password
+                <input
+                  type="password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                  minLength={12}
+                  required
+                />
+              </label>
+            </div>
+            <button type="submit"><KeyRound size={16} /> Change password</button>
+          </form>
+          {securityMessage && <p className="admin-status">{securityMessage}</p>}
+        </article>
+
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <h2>Recent Audit</h2>
+            <Link className="admin-button-link" to={`${adminBase}/audit`}>Open audit</Link>
+          </div>
+          {renderAuditLog(6)}
+        </article>
+      </section>
+    );
+  }
+
+  function renderAudit() {
+    return (
+      <section className="admin-panel admin-panel-wide">
+        <div className="panel-heading">
+          <div>
+            <h2>Audit Log</h2>
+            <p className="admin-status admin-status-tight">Product, order, collection, concierge, settings, and password changes.</p>
+          </div>
+          <button type="button" onClick={readAudit}>Refresh</button>
+        </div>
+        {renderAuditLog()}
+      </section>
+    );
+  }
+
   function renderContent() {
     return (
       <section className="admin-grid">
@@ -1418,15 +2204,6 @@ export function AdminPage() {
     );
   }
 
-  function renderSettings() {
-    return (
-      <article className="admin-panel">
-        <h2>Settings</h2>
-        <p className="admin-empty">Operational settings will live here as the studio grows.</p>
-      </article>
-    );
-  }
-
   function renderRoute() {
     if (routePath === "dashboard") return renderDashboard();
     if (routePath === "products") return renderProductsList();
@@ -1436,10 +2213,13 @@ export function AdminPage() {
     if (routePath === "orders") return renderOrders();
     if (routePath === "customers") return renderCustomers();
     if (routePath.startsWith("customers/")) return renderCustomerDetail();
+    if (routePath === "collections") return renderCollections();
+    if (routePath === "concierge") return renderConcierge();
     if (routePath === "newsletter") return renderNewsletter();
     if (routePath === "content") return renderContent();
     if (routePath === "markets") return renderMarkets();
     if (routePath === "settings") return renderSettings();
+    if (routePath === "audit") return renderAudit();
     return renderDashboard();
   }
 
@@ -1488,12 +2268,15 @@ export function AdminPage() {
         <Link className="admin-brand" to={adminBase}>SEKANAE</Link>
         <NavLink to={adminBase} end><BarChart3 size={18} /> Dashboard</NavLink>
         <NavLink to={`${adminBase}/products`}><Boxes size={18} /> Products</NavLink>
+        <NavLink to={`${adminBase}/collections`}><Layers3 size={18} /> Collections</NavLink>
         <NavLink to={`${adminBase}/orders`}><ClipboardList size={18} /> Orders</NavLink>
         <NavLink to={`${adminBase}/customers`}><Users size={18} /> Customers</NavLink>
+        <NavLink to={`${adminBase}/concierge`}><LifeBuoy size={18} /> Concierge</NavLink>
         <NavLink to={`${adminBase}/newsletter`}><MailCheck size={18} /> Newsletter</NavLink>
         <NavLink to={`${adminBase}/content`}><Edit3 size={18} /> Content</NavLink>
         <NavLink to={`${adminBase}/markets`}><Globe2 size={18} /> Markets</NavLink>
         <NavLink to={`${adminBase}/settings`}><Settings size={18} /> Settings</NavLink>
+        <NavLink to={`${adminBase}/audit`}><Activity size={18} /> Audit</NavLink>
       </aside>
       <section className="admin-main">
         <header className="admin-topbar">

@@ -1,7 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireAdmin } from "../auth/admin.js";
+import { getAdminActorEmail, requireAdmin } from "../auth/admin.js";
 import { ok } from "../http.js";
+import { recordAuditLog } from "../repositories/audit-repository.js";
 import { openApiSchemas } from "../openapi/schemas.js";
 import {
   getOrderById,
@@ -130,6 +131,15 @@ export async function registerAdminOrderRoutes(app: FastifyInstance) {
         },
       });
     }
+
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "update",
+      entityType: "order",
+      entityId: id,
+      summary: `Updated order ${id}`,
+      metadata: payload,
+    });
 
     return ok(order);
   });

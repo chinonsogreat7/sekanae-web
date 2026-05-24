@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { config } from "../config.js";
 import { ok } from "../http.js";
+import { hasDatabase } from "../db/pool.js";
+import { createConciergeRequestInDatabase } from "../repositories/concierge-repository.js";
 import { baseEmailHtml, escapeHtml, sendEmail } from "../services/email-service.js";
 
 const conciergeRequestSchema = z.object({
@@ -30,6 +32,9 @@ export async function registerConciergeRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const payload = conciergeRequestSchema.parse(request.body);
     const recipient = config.ADMIN_EMAIL ?? config.ADMIN_LOGIN_EMAIL;
+    const savedRequest = hasDatabase()
+      ? await createConciergeRequestInDatabase(payload)
+      : undefined;
 
     if (!recipient) {
       return reply.status(503).send({
@@ -70,6 +75,7 @@ export async function registerConciergeRoutes(app: FastifyInstance) {
     }
 
     return ok({
+      id: savedRequest?.id,
       status: result.status,
       message: "Concierge request received.",
     });

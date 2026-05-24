@@ -5,10 +5,15 @@ import Fastify from "fastify";
 import { config } from "./config.js";
 import { registerErrorHandler } from "./http.js";
 import { registerAdminAuthRoutes } from "./routes/admin-auth.js";
+import { registerAdminAuditRoutes } from "./routes/admin-audit.js";
 import { registerAdminCatalogRoutes } from "./routes/admin-catalog.js";
+import { registerAdminConciergeRoutes } from "./routes/admin-concierge.js";
 import { registerAdminCustomerRoutes } from "./routes/admin-customers.js";
+import { registerAdminDashboardRoutes } from "./routes/admin-dashboard.js";
 import { registerAdminNewsletterRoutes } from "./routes/admin-newsletter.js";
 import { registerAdminOrderRoutes } from "./routes/admin-orders.js";
+import { registerAdminSecurityRoutes } from "./routes/admin-security.js";
+import { registerAdminSettingsRoutes } from "./routes/admin-settings.js";
 import { registerCartRoutes } from "./routes/cart.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerConciergeRoutes } from "./routes/concierge.js";
@@ -122,10 +127,15 @@ export async function buildServer() {
   await app.register(registerPaymentRoutes, { prefix: "/api" });
   await app.register(registerStripeWebhookRoutes, { prefix: "/api" });
   await app.register(registerAdminAuthRoutes, { prefix: "/api" });
+  await app.register(registerAdminDashboardRoutes, { prefix: "/api" });
   await app.register(registerAdminCatalogRoutes, { prefix: "/api" });
   await app.register(registerAdminCustomerRoutes, { prefix: "/api" });
+  await app.register(registerAdminConciergeRoutes, { prefix: "/api" });
   await app.register(registerAdminOrderRoutes, { prefix: "/api" });
   await app.register(registerAdminNewsletterRoutes, { prefix: "/api" });
+  await app.register(registerAdminSettingsRoutes, { prefix: "/api" });
+  await app.register(registerAdminSecurityRoutes, { prefix: "/api" });
+  await app.register(registerAdminAuditRoutes, { prefix: "/api" });
 
   return app;
 }

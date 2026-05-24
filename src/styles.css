@@ -1963,7 +1963,7 @@ p {
 
 .admin-metrics {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 18px;
 }
@@ -2360,6 +2360,197 @@ p {
   opacity: 0.45;
 }
 
+.admin-dashboard-widgets {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 0.8fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.admin-widget-list,
+.admin-ops-grid,
+.admin-health-grid,
+.admin-audit-list,
+.admin-request-list,
+.admin-collection-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-widget-list button,
+.admin-widget-list a,
+.admin-ops-grid a {
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--espresso);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.admin-widget-list small {
+  display: block;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.admin-widget-list em {
+  flex: 0 0 auto;
+  color: var(--gold);
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-ops-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-ops-grid a {
+  justify-content: flex-start;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-collection-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-collection-grid article {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.admin-collection-grid img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+}
+
+.admin-collection-grid article > div {
+  padding: 14px;
+}
+
+.admin-collection-grid p {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+
+.admin-collection-grid small {
+  color: var(--gold);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-request-card {
+  display: grid;
+  grid-template-columns: 0.9fr 1.5fr 0.55fr 0.55fr;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  padding: 16px;
+}
+
+.admin-request-card h3 {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.admin-request-card p,
+.admin-request-card span,
+.admin-request-card small {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.admin-request-card strong {
+  display: block;
+  color: var(--espresso);
+}
+
+.admin-request-card label,
+.admin-settings-grid label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-request-card .admin-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-request-card textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.admin-health-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-health-grid span {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px;
+  color: var(--muted);
+}
+
+.admin-health-grid strong {
+  display: block;
+  color: var(--espresso);
+  margin-bottom: 4px;
+}
+
+.admin-health-grid .is-healthy {
+  border-color: rgba(23, 114, 69, 0.3);
+  background: rgba(23, 114, 69, 0.06);
+}
+
+.admin-health-grid .is-missing {
+  border-color: rgba(141, 52, 40, 0.3);
+  background: rgba(141, 52, 40, 0.06);
+}
+
+.admin-audit-list article {
+  border-left: 3px solid var(--gold);
+  background: #fff;
+  border-top: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.admin-audit-list span,
+.admin-audit-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.admin-audit-list strong {
+  display: block;
+  color: var(--espresso);
+  margin: 4px 0;
+}
+
 .admin-product-detail {
   display: grid;
   gap: 22px;
@@ -2641,7 +2832,8 @@ p {
   .checkout-layout,
   .care-layout,
   .legal-layout,
-  .admin-grid {
+  .admin-grid,
+  .admin-dashboard-widgets {
     grid-template-columns: 1fr;
   }
 
@@ -2742,6 +2934,10 @@ p {
   .review-grid,
   .form-grid,
   .admin-metrics,
+  .admin-collection-grid,
+  .admin-request-card,
+  .admin-health-grid,
+  .admin-ops-grid,
   .newsletter-admin-form,
   .newsletter-admin-stats {
     grid-template-columns: 1fr;
@@ -2942,6 +3138,7 @@ p {
   .admin-order-summary,
   .admin-product-detail-grid,
   .admin-product-facts,
+  .admin-request-card,
   .admin-product-copy dl {
     grid-template-columns: 1fr;
   }

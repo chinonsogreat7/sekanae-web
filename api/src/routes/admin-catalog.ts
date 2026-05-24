@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { requireAdmin } from "../auth/admin.js";
+import { getAdminActorEmail, requireAdmin } from "../auth/admin.js";
 import { ok } from "../http.js";
+import { recordAuditLog } from "../repositories/audit-repository.js";
 import { openApiSchemas } from "../openapi/schemas.js";
 import {
   collectionBodySchema,
@@ -35,7 +36,18 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
     },
   }, async (request) => {
     const product = productBodySchema.parse(request.body);
-    return ok(await upsertProductInDatabase(product));
+    const savedProduct = await upsertProductInDatabase(product);
+
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "upsert",
+      entityType: "product",
+      entityId: savedProduct.id,
+      summary: `Saved product ${savedProduct.name}`,
+      metadata: { slug: savedProduct.slug, stock: savedProduct.stock },
+    });
+
+    return ok(savedProduct);
   });
 
   app.patch("/admin/products/:id/inventory", {
@@ -67,6 +79,15 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
       });
     }
 
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "update_inventory",
+      entityType: "product",
+      entityId: id,
+      summary: `Updated inventory for ${product.name} to ${product.stock}`,
+      metadata: { quantity: product.stock },
+    });
+
     return ok(product);
   });
 
@@ -97,6 +118,14 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
       });
     }
 
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "archive",
+      entityType: "product",
+      entityId: id,
+      summary: `Archived product ${id}`,
+    });
+
     return ok({ archived: true });
   });
 
@@ -115,7 +144,17 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
     },
   }, async (request) => {
     const collection = collectionBodySchema.parse(request.body);
-    return ok(await upsertCollectionInDatabase(collection));
+    const savedCollection = await upsertCollectionInDatabase(collection);
+
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "upsert",
+      entityType: "collection",
+      entityId: savedCollection.id,
+      summary: `Saved collection ${savedCollection.title}`,
+    });
+
+    return ok(savedCollection);
   });
 
   app.delete("/admin/collections/:id", {
@@ -144,6 +183,14 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
         },
       });
     }
+
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "archive",
+      entityType: "collection",
+      entityId: id,
+      summary: `Archived collection ${id}`,
+    });
 
     return ok({ archived: true });
   });
