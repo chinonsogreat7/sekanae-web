@@ -8,6 +8,7 @@ import {
 } from "../repositories/order-repository.js";
 import { validateCart, type CartValidationInput, type ValidatedCartItem } from "./cart-service.js";
 import { sendOrderCreatedEmails } from "./email-service.js";
+import { subscribeToNewsletter } from "./newsletter-service.js";
 import { calculateOrderPricing, type CurrencyCode } from "./pricing-service.js";
 
 export type OrderStatus = "pending" | "paid" | "processing" | "fulfilled" | "cancelled" | "refunded";
@@ -34,6 +35,7 @@ export type CreateOrderRequest = {
   billingAddress?: AddressInput;
   items: CartValidationInput["items"];
   notes?: string;
+  marketingOptIn?: boolean;
 };
 
 export type CreateOrderInput = {
@@ -144,6 +146,14 @@ export async function createOrder(request: CreateOrderRequest): Promise<Order> {
   });
 
   await sendOrderCreatedEmails(order);
+
+  if (request.marketingOptIn) {
+    await subscribeToNewsletter({
+      email: request.customer.email,
+      name: request.customer.name,
+      source: "checkout",
+    });
+  }
 
   return order;
 }

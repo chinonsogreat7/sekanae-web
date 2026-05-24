@@ -8,6 +8,7 @@ const rawEnv = {
 const envSchema = z.object({
   API_HOST: z.string().default("0.0.0.0"),
   API_PORT: z.coerce.number().int().positive().default(4000),
+  API_PUBLIC_URL: z.string().url().default("http://localhost:4000"),
   ADMIN_API_KEY: z.string().min(16).optional(),
   DATABASE_URL: z.string().url().optional(),
   RESEND_API_KEY: z.string().min(1).optional(),

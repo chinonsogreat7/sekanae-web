@@ -13,7 +13,7 @@ export type EmailEventInput = {
   errorMessage?: string;
 };
 
-type SendEmailInput = {
+export type SendEmailInput = {
   orderId?: string;
   to: string;
   subject: string;
@@ -22,12 +22,18 @@ type SendEmailInput = {
   template: string;
 };
 
+export type EmailSendResult = {
+  status: "sent" | "failed" | "skipped";
+  providerMessageId?: string;
+  errorMessage?: string;
+};
+
 type ResendResponse = {
   id?: string;
   message?: string;
 };
 
-function escapeHtml(value: string) {
+export function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -59,7 +65,7 @@ function orderItemsHtml(order: Order) {
     .join("");
 }
 
-function baseEmailHtml(title: string, body: string) {
+export function baseEmailHtml(title: string, body: string) {
   return `
     <!doctype html>
     <html>
@@ -163,7 +169,7 @@ function adminOrderCreatedEmail(order: Order, template = "admin_order_created"):
   };
 }
 
-export async function sendEmail(input: SendEmailInput) {
+export async function sendEmail(input: SendEmailInput): Promise<EmailSendResult> {
   if (!config.RESEND_API_KEY) {
     await recordEmailEvent({
       orderId: input.orderId,
@@ -173,7 +179,10 @@ export async function sendEmail(input: SendEmailInput) {
       status: "skipped",
       errorMessage: "RESEND_API_KEY is not configured.",
     });
-    return;
+    return {
+      status: "skipped",
+      errorMessage: "RESEND_API_KEY is not configured.",
+    };
   }
 
   try {
@@ -206,15 +215,27 @@ export async function sendEmail(input: SendEmailInput) {
       providerMessageId: payload.id,
       status: "sent",
     });
+
+    return {
+      status: "sent",
+      providerMessageId: payload.id,
+    };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown email send error.";
+
     await recordEmailEvent({
       orderId: input.orderId,
       recipient: input.to,
       template: input.template,
       subject: input.subject,
       status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Unknown email send error.",
+      errorMessage,
     });
+
+    return {
+      status: "failed",
+      errorMessage,
+    };
   }
 }
 

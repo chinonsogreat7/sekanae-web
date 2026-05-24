@@ -27,6 +27,7 @@ const createOrderSchema = z.object({
     color: z.string().min(1).optional(),
   })).min(1).max(50),
   notes: z.string().max(1000).optional(),
+  marketingOptIn: z.boolean().optional(),
 });
 
 const orderLookupParamsSchema = z.object({

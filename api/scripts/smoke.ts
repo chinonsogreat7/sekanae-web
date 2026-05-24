@@ -48,6 +48,17 @@ try {
   assert.equal(adminOrders.statusCode, 503);
   assert.equal(adminOrders.json().error.code, "DATABASE_REQUIRED");
 
+  const newsletter = await app.inject({
+    method: "POST",
+    url: "/api/newsletter/subscribe",
+    payload: {
+      email: "subscriber@example.com",
+      source: "smoke",
+    },
+  });
+  assert.equal(newsletter.statusCode, 503);
+  assert.equal(newsletter.json().error.code, "DATABASE_REQUIRED");
+
   const stripeWebhook = await app.inject({
     method: "POST",
     url: "/api/stripe/webhook",

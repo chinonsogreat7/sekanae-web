@@ -1,7 +1,44 @@
 import { Camera, Mail, MapPin } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 
+const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
 export function Footer() {
+  const [email, setEmail] = useState("");
+  const [newsletterStatus, setNewsletterStatus] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function subscribe(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setNewsletterStatus(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/newsletter/subscribe`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          source: "footer",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Newsletter signup failed.");
+      }
+
+      setEmail("");
+      setNewsletterStatus("You're on the list.");
+    } catch {
+      setNewsletterStatus("Newsletter signup is unavailable right now.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <footer className="site-footer">
       <section className="newsletter" aria-labelledby="newsletter-title">
@@ -11,12 +48,20 @@ export function Footer() {
             Be the first to discover new arrivals, stories, and private client previews.
           </p>
         </div>
-        <form className="newsletter-form">
+        <form className="newsletter-form" onSubmit={subscribe}>
           <label htmlFor="newsletter-email" className="sr-only">
             Email address
           </label>
-          <input id="newsletter-email" type="email" placeholder="Email address" />
-          <button type="submit">Join</button>
+          <input
+            id="newsletter-email"
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+          <button type="submit" disabled={isSubmitting}>{isSubmitting ? "Joining" : "Join"}</button>
+          {newsletterStatus && <p className="newsletter-status">{newsletterStatus}</p>}
         </form>
       </section>
 

@@ -1,8 +1,103 @@
-import { BarChart3, Boxes, ClipboardList, Edit3, Globe2, PackagePlus, Search, Settings, Sparkles } from "lucide-react";
+import { BarChart3, Boxes, ClipboardList, Edit3, Globe2, MailCheck, PackagePlus, Search, Send, Settings, Sparkles } from "lucide-react";
+import { FormEvent, useState } from "react";
 import { adminMetrics, recentOrders } from "../data/editorial";
 import { products } from "../data/catalog";
 
+const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+type NewsletterStats = {
+  subscribed: number;
+  unsubscribed: number;
+  campaigns: number;
+};
+
+type NewsletterCampaign = {
+  id: string;
+  status: string;
+  recipientCount: number;
+  sentCount: number;
+  failedCount: number;
+};
+
 export function AdminPage() {
+  const [adminToken, setAdminToken] = useState("");
+  const [newsletterStats, setNewsletterStats] = useState<NewsletterStats | null>(null);
+  const [campaignResult, setCampaignResult] = useState<NewsletterCampaign | null>(null);
+  const [newsletterMessage, setNewsletterMessage] = useState<string | null>(null);
+  const [isSendingNewsletter, setIsSendingNewsletter] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [previewText, setPreviewText] = useState("");
+  const [html, setHtml] = useState("<p>A new SEKANAE edit is now available.</p>");
+  const [text, setText] = useState("A new SEKANAE edit is now available.");
+
+  async function readNewsletterStats() {
+    if (!adminToken) {
+      setNewsletterMessage("Enter the admin API key first.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/admin/newsletter/stats`, {
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to load newsletter stats.");
+      }
+
+      const payload = await response.json() as { data: NewsletterStats };
+      setNewsletterStats(payload.data);
+      setNewsletterMessage(null);
+    } catch {
+      setNewsletterMessage("Newsletter stats are unavailable.");
+    }
+  }
+
+  async function sendNewsletter(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!adminToken) {
+      setNewsletterMessage("Enter the admin API key first.");
+      return;
+    }
+
+    setIsSendingNewsletter(true);
+    setNewsletterMessage(null);
+    setCampaignResult(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/admin/newsletter/campaigns/send`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          subject,
+          previewText: previewText || undefined,
+          html,
+          text: text || undefined,
+        }),
+      });
+
+      const payload = await response.json() as { data?: NewsletterCampaign; error?: { message?: string } };
+
+      if (!response.ok || !payload.data) {
+        throw new Error(payload.error?.message ?? "Newsletter send failed.");
+      }
+
+      setCampaignResult(payload.data);
+      setNewsletterMessage("Newsletter campaign sent.");
+      await readNewsletterStats();
+    } catch (error) {
+      setNewsletterMessage(error instanceof Error ? error.message : "Newsletter send failed.");
+    } finally {
+      setIsSendingNewsletter(false);
+    }
+  }
+
   return (
     <div className="admin-page">
       <aside className="admin-sidebar">
@@ -10,6 +105,7 @@ export function AdminPage() {
         <a href="#dashboard"><BarChart3 size={18} /> Dashboard</a>
         <a href="#products"><Boxes size={18} /> Products</a>
         <a href="#orders"><ClipboardList size={18} /> Orders</a>
+        <a href="#newsletter"><MailCheck size={18} /> Newsletter</a>
         <a href="#content"><Edit3 size={18} /> Content</a>
         <a href="#markets"><Globe2 size={18} /> Markets</a>
         <a href="#settings"><Settings size={18} /> Settings</a>
@@ -77,6 +173,72 @@ export function AdminPage() {
         </section>
 
         <section className="admin-grid">
+          <article className="admin-panel newsletter-admin-panel" id="newsletter">
+            <div className="panel-heading">
+              <h2>Newsletter</h2>
+              <button type="button" onClick={readNewsletterStats}><MailCheck size={16} /> Refresh</button>
+            </div>
+            <div className="newsletter-admin-stats">
+              <span><strong>{newsletterStats?.subscribed ?? "-"}</strong> subscribed</span>
+              <span><strong>{newsletterStats?.unsubscribed ?? "-"}</strong> unsubscribed</span>
+              <span><strong>{newsletterStats?.campaigns ?? "-"}</strong> campaigns</span>
+            </div>
+            <form className="newsletter-admin-form" onSubmit={sendNewsletter}>
+              <label>
+                Admin API key
+                <input
+                  type="password"
+                  value={adminToken}
+                  onChange={(event) => setAdminToken(event.target.value)}
+                  placeholder="Bearer token"
+                  autoComplete="off"
+                />
+              </label>
+              <label>
+                Subject
+                <input
+                  value={subject}
+                  onChange={(event) => setSubject(event.target.value)}
+                  placeholder="New SEKANAE arrivals"
+                  required
+                />
+              </label>
+              <label>
+                Preview text
+                <input
+                  value={previewText}
+                  onChange={(event) => setPreviewText(event.target.value)}
+                  placeholder="A short inbox preview"
+                />
+              </label>
+              <label>
+                Email HTML
+                <textarea
+                  value={html}
+                  onChange={(event) => setHtml(event.target.value)}
+                  required
+                />
+              </label>
+              <label>
+                Plain text fallback
+                <textarea
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                />
+              </label>
+              <button type="submit" disabled={isSendingNewsletter}>
+                <Send size={16} /> {isSendingNewsletter ? "Sending" : "Send to subscribers"}
+              </button>
+            </form>
+            {newsletterMessage && <p className="admin-status">{newsletterMessage}</p>}
+            {campaignResult && (
+              <p className="admin-status">
+                Campaign {campaignResult.id.slice(0, 8)}: {campaignResult.sentCount}/{campaignResult.recipientCount} sent,
+                {" "}{campaignResult.failedCount} failed.
+              </p>
+            )}
+          </article>
+
           <article className="admin-panel" id="content">
             <h2>Content Calendar</h2>
             <div className="content-tasks">

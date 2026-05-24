@@ -338,6 +338,7 @@ export const openApiSchemas = {
         },
       },
       notes: { type: "string", maxLength: 1000 },
+      marketingOptIn: { type: "boolean" },
     },
   },
   order: orderSchema,
