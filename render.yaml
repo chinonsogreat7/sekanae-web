@@ -23,7 +23,7 @@ services:
     autoDeployTrigger: commit
     buildCommand: npm ci && npm run api:build
     preDeployCommand: npm run db:migrate && npm run db:seed
-    startCommand: npm run api:start
+    startCommand: npm run api:start:migrated
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

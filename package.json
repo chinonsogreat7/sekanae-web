@@ -12,6 +12,7 @@
     "api:dev": "tsx api/src/index.ts",
     "api:build": "tsc -p tsconfig.api.json",
     "api:start": "node api/dist/api/src/index.js",
+    "api:start:migrated": "node api/dist/api/scripts/migrate.js && node api/dist/api/scripts/seed-catalog.js && npm run api:start",
     "admin:password-hash": "tsx api/scripts/admin-password-hash.ts",
     "db:migrate": "tsx api/scripts/migrate.ts",
     "db:seed": "tsx api/scripts/seed-catalog.ts",
