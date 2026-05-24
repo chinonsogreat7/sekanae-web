@@ -2183,6 +2183,31 @@ p {
   grid-template-columns: minmax(220px, 1.8fr) minmax(130px, 0.8fr) minmax(190px, 1fr) minmax(210px, 1.1fr);
 }
 
+.admin-customer-table .admin-table-head,
+.admin-customer-table .admin-row {
+  grid-template-columns: minmax(260px, 1.4fr) 0.45fr 0.7fr 0.8fr 0.7fr;
+}
+
+.admin-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.admin-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: #efe4d4;
+  color: var(--espresso);
+  font-size: 0.82rem;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
 .admin-row-actions,
 .admin-stock-control {
   display: flex;
@@ -2338,6 +2363,11 @@ p {
 .admin-product-detail {
   display: grid;
   gap: 22px;
+}
+
+.admin-customer-detail {
+  display: grid;
+  gap: 20px;
 }
 
 .admin-product-detail-grid {

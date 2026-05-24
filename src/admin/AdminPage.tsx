@@ -12,6 +12,7 @@ import {
   Settings,
   Sparkles,
   Trash2,
+  Users,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -133,6 +134,20 @@ type Order = {
   items: OrderItem[];
   createdAt: string;
   updatedAt: string;
+};
+
+type CustomerProfile = {
+  email: string;
+  name?: string;
+  phone?: string;
+  newsletterStatus?: "subscribed" | "unsubscribed";
+  newsletterSource?: string;
+  orderCount: number;
+  totalSpend: number;
+  currency?: CurrencyCode;
+  lastOrderAt?: string;
+  firstSeenAt?: string;
+  orders?: Order[];
 };
 
 type ApiPayload<TData> = {
@@ -281,6 +296,8 @@ function getPageTitle(routePath: string) {
   if (routePath.startsWith("products/") && routePath.endsWith("/edit")) return "Edit Product";
   if (routePath.startsWith("products/")) return "Product Detail";
   if (routePath === "orders") return "Orders";
+  if (routePath === "customers") return "Customers";
+  if (routePath.startsWith("customers/")) return "Customer Detail";
   if (routePath === "newsletter") return "Newsletter";
   if (routePath === "content") return "Content";
   if (routePath === "markets") return "Markets";
@@ -295,6 +312,9 @@ export function AdminPage() {
   const routePath = getRoutePath(location.pathname, adminBase);
   const productRouteParts = getProductRoutePart(routePath);
   const routeProductId = productRouteParts[1];
+  const routeCustomerEmail = routePath.startsWith("customers/")
+    ? decodeURIComponent(routePath.replace("customers/", ""))
+    : undefined;
 
   const [adminToken, setAdminToken] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
@@ -326,6 +346,12 @@ export function AdminPage() {
   const [orderStatus, setOrderStatus] = useState<OrderStatus>("pending");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("unpaid");
   const [orderNotes, setOrderNotes] = useState("");
+  const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+  const [customersTotal, setCustomersTotal] = useState(0);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customersMessage, setCustomersMessage] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
 
   const selectedProduct = useMemo(() => {
     if (!routeProductId) return undefined;
@@ -333,6 +359,7 @@ export function AdminPage() {
   }, [adminProducts, routeProductId]);
 
   const productPageCount = Math.max(1, Math.ceil(adminProducts.length / productsPerPage));
+  const customerPageCount = Math.max(1, Math.ceil(customersTotal / productsPerPage));
   const visibleProducts = useMemo(() => {
     const firstProduct = (productPage - 1) * productsPerPage;
     return adminProducts.slice(firstProduct, firstProduct + productsPerPage);
@@ -377,6 +404,7 @@ export function AdminPage() {
 
     void readProducts();
     void readOrders();
+    void readCustomers();
     void readNewsletterStats();
     // Dashboard data should hydrate only after auth changes; filters refresh through Apply.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -387,6 +415,12 @@ export function AdminPage() {
       setProductPage(productPageCount);
     }
   }, [productPage, productPageCount]);
+
+  useEffect(() => {
+    if (customerPage > customerPageCount) {
+      setCustomerPage(customerPageCount);
+    }
+  }, [customerPage, customerPageCount]);
 
   useEffect(() => {
     if (routePath === "products/new") {
@@ -400,6 +434,16 @@ export function AdminPage() {
       setProductMessage(null);
     }
   }, [routePath, selectedProduct]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !adminToken || !routeCustomerEmail) {
+      return;
+    }
+
+    void readCustomerDetail(routeCustomerEmail);
+    // Customer detail should refresh when the route changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, adminToken, routeCustomerEmail]);
 
   async function readAdmin<TData>(path: string, options: RequestInit = {}): Promise<ApiDataPayload<TData>> {
     const response = await fetch(`${apiBaseUrl}${path}`, {
@@ -577,6 +621,47 @@ export function AdminPage() {
     }
   }
 
+  async function readCustomers(nextPage = customerPage) {
+    if (!adminToken) {
+      return;
+    }
+
+    setCustomersMessage(null);
+    const query = new URLSearchParams({
+      limit: String(productsPerPage),
+      offset: String((nextPage - 1) * productsPerPage),
+    });
+
+    if (customerSearch.trim()) {
+      query.set("q", customerSearch.trim());
+    }
+
+    try {
+      const payload = await readAdmin<CustomerProfile[]>(`/api/admin/customers?${query.toString()}`);
+      setCustomers(payload.data);
+      setCustomersTotal(payload.meta?.total ?? payload.data.length);
+
+      if (!payload.data.length) {
+        setCustomersMessage("No customers match this view yet.");
+      }
+    } catch (error) {
+      setCustomers([]);
+      setCustomersTotal(0);
+      setCustomersMessage(error instanceof Error ? error.message : "Customers are unavailable.");
+    }
+  }
+
+  async function readCustomerDetail(email: string) {
+    try {
+      const payload = await readAdmin<CustomerProfile>(`/api/admin/customers/${encodeURIComponent(email)}`);
+      setSelectedCustomer(payload.data);
+      setCustomersMessage(null);
+    } catch (error) {
+      setSelectedCustomer(null);
+      setCustomersMessage(error instanceof Error ? error.message : "Customer detail is unavailable.");
+    }
+  }
+
   async function readOrderDetail(orderId: string) {
     try {
       const payload = await readAdmin<Order>(`/api/admin/orders/${encodeURIComponent(orderId)}`);
@@ -691,6 +776,13 @@ export function AdminPage() {
               <Link className="admin-button-link" to={`${adminBase}/orders`}>Open orders</Link>
             </div>
             <p className="admin-status">{ordersTotal} orders in the current operational view.</p>
+          </article>
+          <article className="admin-panel">
+            <div className="panel-heading">
+              <h2>Customers</h2>
+              <Link className="admin-button-link" to={`${adminBase}/customers`}>Open customers</Link>
+            </div>
+            <p className="admin-status">{customersTotal} known customer records from orders and newsletter signups.</p>
           </article>
         </section>
       </>
@@ -1103,6 +1195,137 @@ export function AdminPage() {
     );
   }
 
+  function renderCustomers() {
+    return (
+      <section className="admin-panel admin-panel-wide">
+        <div className="panel-heading">
+          <div>
+            <h2>Customers</h2>
+            <p className="admin-status admin-status-tight">
+              Showing {customers.length} of {customersTotal} customer records
+            </p>
+          </div>
+        </div>
+        <form className="admin-filters" onSubmit={(event) => {
+          event.preventDefault();
+          setCustomerPage(1);
+          void readCustomers(1);
+        }}>
+          <label>
+            Search
+            <input
+              value={customerSearch}
+              onChange={(event) => setCustomerSearch(event.target.value)}
+              placeholder="Name, email, or phone"
+            />
+          </label>
+          <button type="submit">Apply</button>
+        </form>
+        <div className="admin-table admin-customer-table">
+          <div className="admin-table-head">
+            <span>Customer</span><span>Orders</span><span>Total Spend</span><span>Status</span><span>Actions</span>
+          </div>
+          {customers.map((customer) => (
+            <div className="admin-row" key={customer.email}>
+              <Link to={`${adminBase}/customers/${encodeURIComponent(customer.email)}`}>
+                <span className="admin-avatar">{(customer.name ?? customer.email).slice(0, 1).toUpperCase()}</span>
+                <span>
+                  <strong>{customer.name ?? "Unknown customer"}</strong>
+                  <small>{customer.email}</small>
+                </span>
+              </Link>
+              <span>{customer.orderCount}</span>
+              <span>{customer.currency ? formatMoney(customer.totalSpend, customer.currency) : "-"}</span>
+              <span>{customer.newsletterStatus ?? "No newsletter"}</span>
+              <span className="admin-row-actions">
+                <Link className="admin-inline-button" to={`${adminBase}/customers/${encodeURIComponent(customer.email)}`}>
+                  <Eye size={14} /> View
+                </Link>
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="admin-pagination">
+          <button type="button" disabled={customerPage === 1} onClick={() => {
+            const nextPage = Math.max(1, customerPage - 1);
+            setCustomerPage(nextPage);
+            void readCustomers(nextPage);
+          }}>
+            Previous
+          </button>
+          <span>Page {customerPage} of {customerPageCount}</span>
+          <button type="button" disabled={customerPage === customerPageCount} onClick={() => {
+            const nextPage = Math.min(customerPageCount, customerPage + 1);
+            setCustomerPage(nextPage);
+            void readCustomers(nextPage);
+          }}>
+            Next
+          </button>
+        </div>
+        {customersMessage && <p className="admin-status">{customersMessage}</p>}
+      </section>
+    );
+  }
+
+  function renderCustomerDetail() {
+    if (!selectedCustomer) {
+      return (
+        <section className="admin-panel">
+          <h2>Customer not found</h2>
+          <p className="admin-empty">{customersMessage ?? "This customer is not available."}</p>
+          <Link className="admin-button-link" to={`${adminBase}/customers`}>Back to customers</Link>
+        </section>
+      );
+    }
+
+    return (
+      <section className="admin-grid">
+        <article className="admin-panel admin-customer-detail">
+          <div className="panel-heading">
+            <div>
+              <h2>{selectedCustomer.name ?? "Customer"}</h2>
+              <p className="admin-status admin-status-tight">{selectedCustomer.email}</p>
+            </div>
+            <Link className="admin-button-link" to={`${adminBase}/customers`}>Back to customers</Link>
+          </div>
+          <div className="admin-product-facts">
+            <span><strong>Orders</strong>{selectedCustomer.orderCount}</span>
+            <span><strong>Total spend</strong>{selectedCustomer.currency ? formatMoney(selectedCustomer.totalSpend, selectedCustomer.currency) : "-"}</span>
+            <span><strong>Newsletter</strong>{selectedCustomer.newsletterStatus ?? "No newsletter"}</span>
+            <span><strong>Source</strong>{selectedCustomer.newsletterSource ?? "Order/customer record"}</span>
+            <span><strong>Phone</strong>{selectedCustomer.phone ?? "-"}</span>
+            <span><strong>Last order</strong>{selectedCustomer.lastOrderAt ? formatDate(selectedCustomer.lastOrderAt) : "-"}</span>
+          </div>
+        </article>
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <h2>Order History</h2>
+          </div>
+          <div className="order-list admin-order-list">
+            {(selectedCustomer.orders ?? []).map((order) => (
+              <div key={order.id}>
+                <strong>{order.id.slice(0, 8)}</strong>
+                <span>{formatDate(order.createdAt)}</span>
+                <span>{formatMoney(order.total, order.currency)}</span>
+                <em>{order.status}</em>
+                <button type="button" onClick={() => {
+                  setSelectedOrder(order);
+                  setOrderStatus(order.status);
+                  setPaymentStatus(order.paymentStatus);
+                  setOrderNotes(order.notes ?? "");
+                  navigate(`${adminBase}/orders`);
+                }}>
+                  Open
+                </button>
+              </div>
+            ))}
+          </div>
+          {!selectedCustomer.orders?.length && <p className="admin-empty">No orders for this customer yet.</p>}
+        </article>
+      </section>
+    );
+  }
+
   function renderNewsletter() {
     return (
       <article className="admin-panel newsletter-admin-panel">
@@ -1211,6 +1434,8 @@ export function AdminPage() {
     if (routePath.startsWith("products/") && routePath.endsWith("/edit")) return renderProductForm("Edit Product");
     if (routePath.startsWith("products/")) return renderProductDetail();
     if (routePath === "orders") return renderOrders();
+    if (routePath === "customers") return renderCustomers();
+    if (routePath.startsWith("customers/")) return renderCustomerDetail();
     if (routePath === "newsletter") return renderNewsletter();
     if (routePath === "content") return renderContent();
     if (routePath === "markets") return renderMarkets();
@@ -1264,6 +1489,7 @@ export function AdminPage() {
         <NavLink to={adminBase} end><BarChart3 size={18} /> Dashboard</NavLink>
         <NavLink to={`${adminBase}/products`}><Boxes size={18} /> Products</NavLink>
         <NavLink to={`${adminBase}/orders`}><ClipboardList size={18} /> Orders</NavLink>
+        <NavLink to={`${adminBase}/customers`}><Users size={18} /> Customers</NavLink>
         <NavLink to={`${adminBase}/newsletter`}><MailCheck size={18} /> Newsletter</NavLink>
         <NavLink to={`${adminBase}/content`}><Edit3 size={18} /> Content</NavLink>
         <NavLink to={`${adminBase}/markets`}><Globe2 size={18} /> Markets</NavLink>

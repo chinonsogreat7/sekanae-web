@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { registerErrorHandler } from "./http.js";
 import { registerAdminAuthRoutes } from "./routes/admin-auth.js";
 import { registerAdminCatalogRoutes } from "./routes/admin-catalog.js";
+import { registerAdminCustomerRoutes } from "./routes/admin-customers.js";
 import { registerAdminNewsletterRoutes } from "./routes/admin-newsletter.js";
 import { registerAdminOrderRoutes } from "./routes/admin-orders.js";
 import { registerCartRoutes } from "./routes/cart.js";
@@ -122,6 +123,7 @@ export async function buildServer() {
   await app.register(registerStripeWebhookRoutes, { prefix: "/api" });
   await app.register(registerAdminAuthRoutes, { prefix: "/api" });
   await app.register(registerAdminCatalogRoutes, { prefix: "/api" });
+  await app.register(registerAdminCustomerRoutes, { prefix: "/api" });
   await app.register(registerAdminOrderRoutes, { prefix: "/api" });
   await app.register(registerAdminNewsletterRoutes, { prefix: "/api" });
 
