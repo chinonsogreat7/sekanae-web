@@ -25,6 +25,10 @@ export function registerErrorHandler(app: FastifyInstance) {
     const maybeHttpError = error as { statusCode?: number; message?: string };
     const statusCode = maybeHttpError.statusCode && maybeHttpError.statusCode >= 400 ? maybeHttpError.statusCode : 500;
 
+    if (statusCode >= 500) {
+      app.log.error(error);
+    }
+
     return reply.status(statusCode).send({
       error: {
         code: statusCode >= 500 ? "INTERNAL_SERVER_ERROR" : "REQUEST_ERROR",
