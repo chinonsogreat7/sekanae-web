@@ -73,11 +73,16 @@ function withNewsletterFrame(input: {
 
   return baseEmailHtml(input.subject, `
     ${preview}
-    ${input.html}
-    <hr style="border:0;border-top:1px solid #ece7df;margin:28px 0;" />
-    <p style="color:#756f66;font-size:12px;line-height:1.6;">
+    <div style="background:#fff7f3;border-left:3px solid #e8b8ae;padding:18px 20px;margin-bottom:24px;">
+      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#a66f67;">From the studio</div>
+      <div style="margin-top:6px;color:#7f6b63;">Softly curated notes, arrivals, and pieces for the life around you.</div>
+    </div>
+    <div style="font-size:16px;line-height:1.8;color:#5c4b45;">
+      ${input.html}
+    </div>
+    <p style="margin-top:28px;color:#7f6b63;font-size:12px;line-height:1.6;border-top:1px solid #eadbd5;padding-top:18px;">
       You are receiving this because ${escapeHtml(input.subscriber.email)} opted in to SEKANAE updates.
-      <a href="${unsubscribeUrl}" style="color:#8a6f49;">Unsubscribe</a>
+      <a href="${unsubscribeUrl}" style="color:#a66f67;">Unsubscribe</a>
     </p>
   `);
 }
@@ -90,10 +95,14 @@ function withUnsubscribeText(text: string, subscriber: NewsletterSubscriber) {
 async function sendNewsletterWelcomeEmail(subscriber: NewsletterSubscriber) {
   const greeting = subscriber.name ? `Hello ${escapeHtml(subscriber.name)},` : "Hello,";
   const body = `
-    <p>${greeting}</p>
-    <p>You are now subscribed to SEKANAE updates. We will send considered arrivals, edits, and client notes to this inbox.</p>
-    <p style="margin:24px 0;">
-      <a href="${config.WEB_ORIGIN}/shop" style="display:inline-block;background:#231f1a;color:#fff;text-decoration:none;padding:12px 18px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
+    <p style="margin:0 0 14px;">${greeting}</p>
+    <p style="margin:0 0 18px;">You are now subscribed to SEKANAE updates. We will send considered arrivals, edits, and client notes to this inbox.</p>
+    <div style="background:#a66f67;color:#fff;padding:20px;margin:22px 0;">
+      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#fff7f3;">Welcome note</div>
+      <div style="margin-top:10px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.15;color:#fff;">Timeless pieces, studio news, and first looks.</div>
+    </div>
+    <p style="margin:24px 0 4px;">
+      <a href="${config.WEB_ORIGIN}/shop" style="display:inline-block;background:#2f2420;color:#fff;text-decoration:none;padding:12px 18px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">
         Explore the collection
       </a>
     </p>

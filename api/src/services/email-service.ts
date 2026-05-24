@@ -53,11 +53,11 @@ function orderItemsHtml(order: Order) {
   return order.items
     .map((item) => `
       <tr>
-        <td style="padding:12px 0;border-bottom:1px solid #ece7df;">
-          <strong>${escapeHtml(item.name)}</strong><br />
-          <span style="color:#756f66;">${escapeHtml(item.color)} x ${item.quantity}</span>
+        <td style="padding:18px 0;border-bottom:1px solid #eadbd5;">
+          <div style="font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.25;color:#2f2420;">${escapeHtml(item.name)}</div>
+          <div style="margin-top:6px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#a66f67;">${escapeHtml(item.color)} / Qty ${item.quantity}</div>
         </td>
-        <td align="right" style="padding:12px 0;border-bottom:1px solid #ece7df;">
+        <td align="right" style="padding:18px 0;border-bottom:1px solid #eadbd5;font-weight:700;color:#2f2420;">
           ${money(item.lineTotal, order.currency)}
         </td>
       </tr>
@@ -69,20 +69,35 @@ export function baseEmailHtml(title: string, body: string) {
   return `
     <!doctype html>
     <html>
-      <body style="margin:0;background:#f8f5ef;color:#231f1a;font-family:Arial,Helvetica,sans-serif;">
-        <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="background:#f8f5ef;padding:32px 16px;">
+      <body style="margin:0;background:#fbf1ee;color:#2f2420;font-family:Arial,Helvetica,sans-serif;">
+        <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="background:#fbf1ee;padding:34px 14px;">
           <tr>
             <td align="center">
-              <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fff;border:1px solid #ece7df;">
+              <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="max-width:680px;background:#fffdfb;border:1px solid #eadbd5;">
                 <tr>
-                  <td style="padding:28px 28px 12px;">
-                    <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8a6f49;">Sekanae</div>
-                    <h1 style="font-size:24px;line-height:1.25;margin:12px 0 0;">${escapeHtml(title)}</h1>
+                  <td style="background:#2f2420;padding:18px 28px;text-align:center;">
+                    <div style="font-family:Georgia,'Times New Roman',serif;font-size:30px;letter-spacing:10px;text-transform:uppercase;color:#e8b8ae;">SEKANAE</div>
+                    <div style="margin-top:8px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#fbf1ee;">Luxury accessories for women of the world</div>
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding:8px 28px 28px;font-size:15px;line-height:1.7;">
+                  <td style="padding:34px 36px 10px;">
+                    <div style="width:46px;height:1px;background:#e8b8ae;margin-bottom:22px;"></div>
+                    <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:38px;font-weight:400;line-height:1.04;margin:0;color:#2f2420;">${escapeHtml(title)}</h1>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 36px 34px;font-size:15px;line-height:1.75;color:#5c4b45;">
                     ${body}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background:#fff7f3;padding:24px 36px;border-top:1px solid #eadbd5;">
+                    <div style="font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.35;color:#2f2420;">With care from the SEKANAE studio.</div>
+                    <div style="margin-top:10px;font-size:11px;line-height:1.7;color:#7f6b63;">
+                      We send service emails for orders, payments, concierge requests, and subscribed updates.
+                      For support, reply to this email or visit sekanae.co.
+                    </div>
                   </td>
                 </tr>
               </table>
@@ -97,16 +112,23 @@ export function baseEmailHtml(title: string, body: string) {
 function customerOrderReceivedEmail(order: Order): SendEmailInput {
   const subject = `Complete payment for your Sekanae order ${order.id}`;
   const body = `
-    <p>Hello ${escapeHtml(order.customer.name)},</p>
-    <p>We received your order and it is currently pending payment confirmation.</p>
-    <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:20px 0;">
+    <p style="margin:0 0 14px;">Hello ${escapeHtml(order.customer.name)},</p>
+    <p style="margin:0 0 20px;">We received your order and reserved the selected pieces while payment is completed.</p>
+    <div style="background:#fff7f3;border:1px solid #eadbd5;padding:16px 18px;margin:22px 0;">
+      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#a66f67;">Order reference</div>
+      <div style="margin-top:6px;font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#2f2420;">${escapeHtml(order.id)}</div>
+    </div>
+    <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:22px 0;">
       ${orderItemsHtml(order)}
       <tr>
-        <td style="padding:16px 0;"><strong>Total</strong></td>
-        <td align="right" style="padding:16px 0;"><strong>${money(order.total, order.currency)}</strong></td>
+        <td style="padding:20px 0;font-size:12px;letter-spacing:1.8px;text-transform:uppercase;color:#a66f67;"><strong>Total</strong></td>
+        <td align="right" style="padding:20px 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#2f2420;"><strong>${money(order.total, order.currency)}</strong></td>
       </tr>
     </table>
-    <p>We will send another update once payment is confirmed and the order moves into processing.</p>
+    <div style="background:#fbf1ee;padding:16px 18px;margin:20px 0;color:#6b5851;">
+      Your pieces will be prepared with care, wrapped beautifully, and handled by our studio before dispatch.
+    </div>
+    <p style="margin:18px 0 0;">We will send another update once payment is confirmed and the order moves into preparation.</p>
   `;
 
   return {
@@ -122,16 +144,23 @@ function customerOrderReceivedEmail(order: Order): SendEmailInput {
 function customerPaymentConfirmedEmail(order: Order): SendEmailInput {
   const subject = `Your Sekanae order ${order.id} is confirmed`;
   const body = `
-    <p>Hello ${escapeHtml(order.customer.name)},</p>
-    <p>Your payment has been confirmed. We are preparing your order now.</p>
-    <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:20px 0;">
+    <p style="margin:0 0 14px;">Hello ${escapeHtml(order.customer.name)},</p>
+    <p style="margin:0 0 20px;">Your payment has been confirmed. We are preparing your SEKANAE order now.</p>
+    <div style="background:#2f2420;color:#fff;padding:18px 20px;margin:22px 0;">
+      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#e8b8ae;">Confirmed order</div>
+      <div style="margin-top:6px;font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#fff;">${escapeHtml(order.id)}</div>
+    </div>
+    <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:22px 0;">
       ${orderItemsHtml(order)}
       <tr>
-        <td style="padding:16px 0;"><strong>Total paid</strong></td>
-        <td align="right" style="padding:16px 0;"><strong>${money(order.total, order.currency)}</strong></td>
+        <td style="padding:20px 0;font-size:12px;letter-spacing:1.8px;text-transform:uppercase;color:#a66f67;"><strong>Total paid</strong></td>
+        <td align="right" style="padding:20px 0;font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#2f2420;"><strong>${money(order.total, order.currency)}</strong></td>
       </tr>
     </table>
-    <p>We will email you again when fulfillment updates are available.</p>
+    <div style="background:#fff7f3;border:1px solid #eadbd5;padding:16px 18px;margin:20px 0;color:#6b5851;">
+      A studio note will follow when your order is ready to travel.
+    </div>
+    <p style="margin:18px 0 0;">We will email you again when fulfillment updates are available.</p>
   `;
 
   return {
@@ -149,11 +178,21 @@ function adminOrderCreatedEmail(order: Order, template = "admin_order_created"):
 
   const subject = template === "admin_order_paid" ? `Paid Sekanae order ${order.id}` : `New Sekanae order ${order.id}`;
   const body = `
-    <p>${template === "admin_order_paid" ? "An order was paid." : "A new order was created."}</p>
-    <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} (${escapeHtml(order.customer.email)})</p>
-    <p><strong>Status:</strong> ${escapeHtml(order.status)}<br />
-    <strong>Payment:</strong> ${escapeHtml(order.paymentStatus)}<br />
-    <strong>Total:</strong> ${money(order.total, order.currency)}</p>
+    <p style="margin:0 0 18px;">${template === "admin_order_paid" ? "An order was paid." : "A new order was created."}</p>
+    <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#fff7f3;border:1px solid #eadbd5;margin:18px 0 24px;">
+      <tr>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadbd5;color:#7f6b63;">Customer</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadbd5;text-align:right;color:#2f2420;"><strong>${escapeHtml(order.customer.name)}</strong><br />${escapeHtml(order.customer.email)}</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadbd5;color:#7f6b63;">Status</td>
+        <td style="padding:14px 16px;border-bottom:1px solid #eadbd5;text-align:right;color:#2f2420;">${escapeHtml(order.status)} / ${escapeHtml(order.paymentStatus)}</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px;color:#7f6b63;">Total</td>
+        <td style="padding:14px 16px;text-align:right;font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#2f2420;">${money(order.total, order.currency)}</td>
+      </tr>
+    </table>
     <table width="100%" role="presentation" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:20px 0;">
       ${orderItemsHtml(order)}
     </table>
