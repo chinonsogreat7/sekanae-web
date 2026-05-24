@@ -16,6 +16,21 @@ import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
 import { registerStripeWebhookRoutes } from "./routes/stripe-webhook.js";
 
+const defaultWebOrigins = [
+  "https://sekanae-web.onrender.com",
+  "https://sekanae.co",
+  "https://www.sekanae.co",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+function getAllowedWebOrigins() {
+  return Array.from(new Set([
+    ...config.WEB_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean),
+    ...defaultWebOrigins,
+  ]));
+}
+
 export async function buildServer() {
   const app = Fastify({
     logger: {
@@ -24,7 +39,7 @@ export async function buildServer() {
   });
 
   await app.register(cors, {
-    origin: [config.WEB_ORIGIN, "http://localhost:5173", "http://localhost:5174"],
+    origin: getAllowedWebOrigins(),
     credentials: true,
   });
 
