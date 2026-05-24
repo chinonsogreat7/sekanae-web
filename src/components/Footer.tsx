@@ -1,8 +1,9 @@
 import { Camera, Mail, MapPin } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
+import { getApiBaseUrl } from "../api/config";
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const apiBaseUrl = getApiBaseUrl();
 
 export function Footer() {
   const [email, setEmail] = useState("");

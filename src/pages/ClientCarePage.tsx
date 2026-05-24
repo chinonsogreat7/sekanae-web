@@ -1,9 +1,10 @@
 import { Mail, MessageCircle, PackageCheck, RotateCcw } from "lucide-react";
 import { FormEvent, useState } from "react";
+import { getApiBaseUrl } from "../api/config";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageMeta } from "../components/PageMeta";
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const apiBaseUrl = getApiBaseUrl();
 
 export function ClientCarePage() {
   const [name, setName] = useState("");

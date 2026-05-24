@@ -1,10 +1,11 @@
 import { products, type Product } from "../data/catalog";
+import { getApiBaseUrl } from "./config";
 
 type ApiResponse<TData> = {
   data: TData;
 };
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const apiBaseUrl = getApiBaseUrl();
 
 async function readApi<TData>(path: string): Promise<TData> {
   const response = await fetch(`${apiBaseUrl}${path}`);

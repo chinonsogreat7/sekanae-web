@@ -14,11 +14,12 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getProducts } from "../api/client";
+import { getApiBaseUrl } from "../api/config";
 import { products as fallbackProducts, type CurrencyCode, type Product, type ProductCategory } from "../data/catalog";
 import { adminMetrics } from "../data/editorial";
 import { formatMoney } from "../utils/money";
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const apiBaseUrl = getApiBaseUrl();
 const adminTokenStorageKey = "sekanae_admin_token";
 
 const productCategories: ProductCategory[] = [
