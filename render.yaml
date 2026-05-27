@@ -2,11 +2,12 @@ services:
   - type: web
     name: sekanae-web
     runtime: static
+    branch: main
     autoDeployTrigger: commit
     domains:
       - sekanae.co
       - www.sekanae.co
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     staticPublishPath: ./dist
     routes:
       - type: rewrite
@@ -20,8 +21,9 @@ services:
     name: sekanae-api
     runtime: node
     plan: free
+    branch: main
     autoDeployTrigger: commit
-    buildCommand: npm ci && npm run api:build
+    buildCommand: npm ci --include=dev && npm run api:build
     preDeployCommand: npm run db:migrate && npm run db:seed
     startCommand: npm run api:start:migrated
     healthCheckPath: /health
