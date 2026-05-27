@@ -11,6 +11,7 @@ const migrationFiles = [
   "006_newsletter.sql",
   "007_admin_operations.sql",
   "008_product_tags.sql",
+  "009_product_categories.sql",
 ];
 
 async function migrate() {

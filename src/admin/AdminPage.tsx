@@ -187,6 +187,18 @@ type CollectionDraft = Collection & {
   sortOrder: string;
 };
 
+type ProductCategoryOption = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+type CategoryDraft = {
+  id: string;
+  name: string;
+  sortOrder: string;
+};
+
 type ConciergeStatus = typeof conciergeStatuses[number];
 type ReplyStatus = typeof replyStatuses[number];
 
@@ -350,10 +362,26 @@ function createCollectionDraft(): CollectionDraft {
   };
 }
 
+function createCategoryDraft(): CategoryDraft {
+  return {
+    id: "",
+    name: "",
+    sortOrder: "0",
+  };
+}
+
 function collectionToDraft(collection: Collection, sortOrder = 0): CollectionDraft {
   return {
     ...collection,
     sortOrder: String(sortOrder),
+  };
+}
+
+function categoryToDraft(category: ProductCategoryOption): CategoryDraft {
+  return {
+    id: category.id,
+    name: category.name,
+    sortOrder: String(category.sortOrder),
   };
 }
 
@@ -490,6 +518,7 @@ export function AdminPage() {
   const [text, setText] = useState("A new SEKANAE edit is now available.");
   const [isNewsletterSourceMode, setIsNewsletterSourceMode] = useState(false);
   const newsletterEditorRef = useRef<HTMLDivElement | null>(null);
+  const collectionFormRef = useRef<HTMLFormElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
@@ -519,6 +548,9 @@ export function AdminPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionDraft, setCollectionDraft] = useState<CollectionDraft>(() => createCollectionDraft());
   const [collectionMessage, setCollectionMessage] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ProductCategoryOption[]>([]);
+  const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(() => createCategoryDraft());
+  const [categoryMessage, setCategoryMessage] = useState<string | null>(null);
   const [conciergeRequests, setConciergeRequests] = useState<ConciergeRequest[]>([]);
   const [conciergeFilter, setConciergeFilter] = useState<"" | ConciergeStatus>("");
   const [conciergeMessage, setConciergeMessage] = useState<string | null>(null);
@@ -546,8 +578,13 @@ export function AdminPage() {
     return adminProducts.slice(firstProduct, firstProduct + productsPerPage);
   }, [adminProducts, productPage]);
   const categoryOptions = useMemo(
-    () => [...new Set([...fallbackCategories, ...adminProducts.map((product) => product.category), productDraft.category].filter(Boolean))].sort(),
-    [adminProducts, productDraft.category],
+    () => [...new Set([
+      ...fallbackCategories,
+      ...categories.map((category) => category.name),
+      ...adminProducts.map((product) => product.category),
+      productDraft.category,
+    ].filter(Boolean))].sort(),
+    [adminProducts, categories, productDraft.category],
   );
   const tagOptions = useMemo(
     () => [...new Set([
@@ -601,6 +638,7 @@ export function AdminPage() {
     void readCustomers();
     void readDashboard();
     void readCollections();
+    void readCategories();
     void readConcierge();
     void readSettings();
     void readAudit();
@@ -760,6 +798,21 @@ export function AdminPage() {
     }
   }
 
+  async function readCategories() {
+    if (!adminToken) {
+      return;
+    }
+
+    try {
+      const payload = await readAdmin<ProductCategoryOption[]>("/api/admin/categories");
+      setCategories(payload.data);
+      setCategoryMessage(null);
+    } catch (error) {
+      setCategories([]);
+      setCategoryMessage(error instanceof Error ? error.message : "Categories are unavailable.");
+    }
+  }
+
   async function saveCollection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCollectionMessage(null);
@@ -801,6 +854,55 @@ export function AdminPage() {
       await readAudit();
     } catch (error) {
       setCollectionMessage(error instanceof Error ? error.message : "Collection archive failed.");
+    }
+  }
+
+  function editCollection(collection: Collection, index: number) {
+    setCollectionDraft(collectionToDraft(collection, index));
+    setCollectionMessage(`Editing ${collection.title}. Update the form and save when ready.`);
+    collectionFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function saveCategory(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCategoryMessage(null);
+
+    try {
+      const payload = await readAdmin<ProductCategoryOption>("/api/admin/categories", {
+        method: "POST",
+        body: JSON.stringify({
+          id: categoryDraft.id.trim() || undefined,
+          name: categoryDraft.name.trim(),
+          sortOrder: Number(categoryDraft.sortOrder),
+        }),
+      });
+
+      setCategoryMessage(`${payload.data.name} has been saved.`);
+      setCategoryDraft(categoryToDraft(payload.data));
+      await readCategories();
+      await readProducts();
+      await readAudit();
+    } catch (error) {
+      setCategoryMessage(error instanceof Error ? error.message : "Category save failed.");
+    }
+  }
+
+  async function archiveCategory(categoryId: string) {
+    if (!window.confirm("Archive this category? Existing products will keep their category text, but the category will be removed from admin category options.")) {
+      return;
+    }
+
+    try {
+      await readAdmin<{ archived: boolean }>(`/api/admin/categories/${encodeURIComponent(categoryId)}`, {
+        method: "DELETE",
+      });
+      setCategoryMessage("Category archived.");
+      setCategoryDraft(createCategoryDraft());
+      await readCategories();
+      await readProducts();
+      await readAudit();
+    } catch (error) {
+      setCategoryMessage(error instanceof Error ? error.message : "Category archive failed.");
     }
   }
 
@@ -1348,7 +1450,7 @@ export function AdminPage() {
     const dashboardMetrics = [
       {
         label: "Revenue",
-        value: metrics ? formatMoney(metrics.revenue, "USD") : "-",
+        value: metrics ? formatMoney(metrics.revenue, "EUR") : "-",
         note: "Confirmed order value",
       },
       {
@@ -1540,7 +1642,7 @@ export function AdminPage() {
         <div className="admin-product-detail-grid">
           <img src={selectedProduct.images[0]} alt={selectedProduct.name} />
           <div className="admin-product-facts">
-            <span><strong>Price</strong>{formatMoney(selectedProduct.price, "USD")}</span>
+            <span><strong>Price</strong>{formatMoney(selectedProduct.price, "EUR")}</span>
             <span><strong>Stock</strong>{selectedProduct.stock}</span>
             <span><strong>Material</strong>{selectedProduct.material}</span>
             <span><strong>Rating</strong>{selectedProduct.rating} / 5 ({selectedProduct.reviews} reviews)</span>
@@ -1622,11 +1724,11 @@ export function AdminPage() {
           <section className="admin-form-section">
             <div>
               <h3>Pricing and inventory</h3>
-              <p>Prices are entered in USD and converted using market settings.</p>
+              <p>Prices are entered in EUR and converted using market settings.</p>
             </div>
             <div className="admin-form-grid">
               <label>
-                Base price (USD)
+                Base price (EUR)
                 <input type="number" min="0" step="0.01" value={productDraft.price} onChange={(event) => setProductDraft((current) => ({ ...current, price: event.target.value }))} required />
               </label>
               <label>
@@ -2144,7 +2246,7 @@ export function AdminPage() {
               <PackagePlus size={16} /> New collection
             </button>
           </div>
-          <form className="admin-product-form admin-product-form-standalone" onSubmit={saveCollection}>
+          <form ref={collectionFormRef} className="admin-product-form admin-product-form-standalone" onSubmit={saveCollection}>
             <div className="admin-form-grid">
               <label>
                 Collection ID
@@ -2217,7 +2319,7 @@ export function AdminPage() {
                   <small>{collection.cta}</small>
                 </div>
                 <div className="admin-row-actions">
-                  <button type="button" onClick={() => setCollectionDraft(collectionToDraft(collection, index))}>Edit</button>
+                  <button type="button" onClick={() => editCollection(collection, index)}>Edit</button>
                   <button className="admin-danger" type="button" onClick={() => archiveCollection(collection.id)}>
                     <Trash2 size={14} /> Archive
                   </button>
@@ -2226,6 +2328,60 @@ export function AdminPage() {
             ))}
             {!collections.length && <p className="admin-empty">No collections are available yet.</p>}
           </div>
+        </article>
+
+        <article className="admin-panel admin-panel-wide">
+          <div className="panel-heading">
+            <div>
+              <h2>Categories</h2>
+              <p className="admin-status admin-status-tight">Create category options for products, edit their display order, or archive unused categories.</p>
+            </div>
+            <button type="button" onClick={() => setCategoryDraft(createCategoryDraft())}>
+              <PackagePlus size={16} /> New category
+            </button>
+          </div>
+          <form className="admin-product-form admin-product-form-standalone" onSubmit={saveCategory}>
+            <div className="admin-form-grid admin-form-grid-compact">
+              <label>
+                Category name
+                <input
+                  value={categoryDraft.name}
+                  onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Jewelry"
+                  required
+                />
+              </label>
+              <label>
+                Sort order
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={categoryDraft.sortOrder}
+                  onChange={(event) => setCategoryDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                />
+              </label>
+            </div>
+            <button type="submit">Save category</button>
+          </form>
+          <div className="admin-category-list">
+            {categories.map((category) => (
+              <div key={category.id}>
+                <span>
+                  <strong>{category.name}</strong>
+                  <small>Sort {category.sortOrder}</small>
+                </span>
+                <span className="admin-row-actions">
+                  <button type="button" onClick={() => setCategoryDraft(categoryToDraft(category))}>Edit</button>
+                  <button className="admin-danger" type="button" onClick={() => archiveCategory(category.id)}>
+                    <Trash2 size={14} /> Archive
+                  </button>
+                </span>
+              </div>
+            ))}
+            {!categories.length && <p className="admin-empty">No categories are available yet.</p>}
+          </div>
+          {categoryMessage && <p className="admin-status">{categoryMessage}</p>}
         </article>
       </section>
     );
@@ -2359,7 +2515,7 @@ export function AdminPage() {
                   />
                 </label>
                 <label>
-                  Base shipping amount (USD)
+                  Base shipping amount (EUR)
                   <input
                     type="number"
                     min="0"

@@ -78,6 +78,16 @@ const collectionSchema = {
   },
 } as const;
 
+const categorySchema = {
+  type: "object",
+  required: ["id", "name", "sortOrder"],
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    sortOrder: { type: "integer", minimum: 0 },
+  },
+} as const;
+
 const idParamsSchema = {
   type: "object",
   required: ["id"],
@@ -256,10 +266,21 @@ const adminCollectionBodySchema = {
   },
 } as const;
 
+const adminCategoryBodySchema = {
+  type: "object",
+  required: ["name"],
+  properties: {
+    id: { type: "string", minLength: 1 },
+    name: { type: "string", minLength: 1 },
+    sortOrder: { type: "integer", minimum: 0, default: 0 },
+  },
+} as const;
+
 export const openApiSchemas = {
   error: errorSchema,
   product: productSchema,
   collection: collectionSchema,
+  category: categorySchema,
   idParams: idParamsSchema,
   productListResponse: {
     type: "object",
@@ -288,6 +309,20 @@ export const openApiSchemas = {
     required: ["data"],
     properties: {
       data: collectionSchema,
+    },
+  },
+  adminCategoriesResponse: {
+    type: "object",
+    required: ["data"],
+    properties: {
+      data: { type: "array", items: categorySchema },
+    },
+  },
+  adminCategoryResponse: {
+    type: "object",
+    required: ["data"],
+    properties: {
+      data: categorySchema,
     },
   },
   marketSettingsResponse: {
@@ -421,6 +456,7 @@ export const openApiSchemas = {
   },
   adminProductBody: adminProductBodySchema,
   adminCollectionBody: adminCollectionBodySchema,
+  adminCategoryBody: adminCategoryBodySchema,
   adminOrderUpdateBody: {
     type: "object",
     properties: {

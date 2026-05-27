@@ -65,7 +65,17 @@ function mapProduct(row: ProductRow): Product {
 async function listProductOptionValues() {
   const pool = getPool();
   const [categoriesResult, colorsResult, materialsResult, occasionsResult, tagsResult] = await Promise.all([
-    pool.query<{ value: string }>("select distinct category as value from products where active = true order by category asc"),
+    pool.query<{ value: string }>(`
+      select name as value
+      from product_categories
+      where active = true
+      union
+      select distinct category as value
+      from products
+      where active = true
+        and not exists (select 1 from product_categories where active = true)
+      order by value asc
+    `),
     pool.query<{ value: string }>("select distinct color as value from product_colors order by color asc"),
     pool.query<{ value: string }>("select distinct material as value from products where active = true order by material asc"),
     pool.query<{ value: string }>("select distinct occasion as value from product_occasions order by occasion asc"),

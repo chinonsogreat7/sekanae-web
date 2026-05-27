@@ -1672,6 +1672,12 @@ p {
   padding: clamp(24px, 4vw, 42px);
 }
 
+.checkout-form textarea {
+  min-height: 92px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
 .checkout-assurance {
   margin: 18px 0 28px;
   color: var(--muted);
@@ -1686,6 +1692,82 @@ p {
 
 .wide {
   grid-column: 1 / -1;
+}
+
+.stripe-handoff {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 14px 0 18px;
+  padding: 18px;
+  background: var(--pearl);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.stripe-handoff svg {
+  flex: 0 0 auto;
+  color: var(--gold);
+}
+
+.stripe-handoff p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.checkout-checkbox {
+  margin: 0 0 18px;
+}
+
+.api-status-error {
+  color: #9d2424;
+}
+
+.checkout-confirmation {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.checkout-confirmation > svg {
+  color: var(--gold);
+  margin-bottom: 16px;
+}
+
+.confirmation-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 28px 0;
+  text-align: left;
+}
+
+.confirmation-details div {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+  background: #fff;
+}
+
+.confirmation-details dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.confirmation-details dd {
+  margin: 8px 0 0;
+  color: var(--espresso);
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.confirmation-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .care-layout {
@@ -1967,10 +2049,10 @@ p {
   margin-bottom: 30px;
   color: var(--gold);
   font-family: var(--serif);
-  font-size: 2.25rem;
-  letter-spacing: 0.24em;
+  font-size: clamp(1.7rem, 2.1vw, 2.25rem);
+  letter-spacing: 0.18em;
   line-height: 1;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .admin-sidebar a {
@@ -2765,7 +2847,8 @@ p {
 .admin-health-grid,
 .admin-audit-list,
 .admin-request-list,
-.admin-collection-grid {
+.admin-collection-grid,
+.admin-category-list {
   display: grid;
   gap: 12px;
 }
@@ -2846,6 +2929,31 @@ p {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.admin-category-list {
+  margin-top: 18px;
+}
+
+.admin-category-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.admin-category-list span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-category-list small {
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 .admin-request-card {

@@ -6,7 +6,7 @@ import { formatMoney } from "../utils/money";
 
 export function CartPage() {
   const { cartProducts, currency, exchangeRates, defaultShippingAmount, subtotal, updateQuantity, removeFromCart, toggleGiftWrap } = useStore();
-  const shipping = subtotal > 500 ? 0 : defaultShippingAmount;
+  const shipping = defaultShippingAmount;
 
   return (
     <div className="page section-pad">
@@ -39,7 +39,7 @@ export function CartPage() {
                         checked={item.giftWrap}
                         onChange={() => toggleGiftWrap(item.productId, item.color)}
                       />
-                      Luxury gift packaging (+{formatMoney(18, currency, exchangeRates)})
+                      Luxury gift packaging request
                     </label>
                   </div>
                   <div className="quantity-control" aria-label={`${item.product.name} quantity`}>
@@ -51,7 +51,7 @@ export function CartPage() {
                       <Plus size={14} />
                     </button>
                   </div>
-                  <strong>{formatMoney(item.product.price * item.quantity + (item.giftWrap ? 18 : 0), currency, exchangeRates)}</strong>
+                  <strong>{formatMoney(item.product.price * item.quantity, currency, exchangeRates)}</strong>
                   <button className="icon-button" type="button" onClick={() => removeFromCart(item.productId, item.color)} aria-label="Remove item">
                     <Trash2 size={18} />
                   </button>

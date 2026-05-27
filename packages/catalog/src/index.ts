@@ -36,14 +36,14 @@ export type Collection = {
   cta: string;
 };
 
-export const baseCurrency: CurrencyCode = "USD";
+export const baseCurrency: CurrencyCode = "EUR";
 
 export const currencies: Record<CurrencyCode, { symbol: string; rate: number; label: string }> = {
-  USD: { symbol: "$", rate: 1, label: "USD" },
-  GBP: { symbol: "£", rate: 0.79, label: "GBP" },
-  EUR: { symbol: "€", rate: 0.92, label: "EUR" },
-  NGN: { symbol: "₦", rate: 1450, label: "NGN" },
-  AED: { symbol: "د.إ", rate: 3.67, label: "AED" },
+  USD: { symbol: "$", rate: 1.09, label: "USD" },
+  GBP: { symbol: "£", rate: 0.86, label: "GBP" },
+  EUR: { symbol: "€", rate: 1, label: "EUR" },
+  NGN: { symbol: "₦", rate: 1700, label: "NGN" },
+  AED: { symbol: "د.إ", rate: 4, label: "AED" },
 };
 
 export const products: Product[] = [

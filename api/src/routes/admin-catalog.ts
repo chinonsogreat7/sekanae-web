@@ -4,15 +4,19 @@ import { ok } from "../http.js";
 import { recordAuditLog } from "../repositories/audit-repository.js";
 import { openApiSchemas } from "../openapi/schemas.js";
 import {
+  categoryBodySchema,
   collectionBodySchema,
   idParamSchema,
   inventoryBodySchema,
   productBodySchema,
 } from "./admin-catalog-schemas.js";
 import {
+  listCategoriesInDatabase,
+  softDeleteCategoryInDatabase,
   softDeleteCollectionInDatabase,
   softDeleteProductInDatabase,
   updateInventoryInDatabase,
+  upsertCategoryInDatabase,
   upsertCollectionInDatabase,
   upsertProductInDatabase,
 } from "../repositories/admin-catalog-repository.js";
@@ -155,6 +159,84 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
     });
 
     return ok(savedCollection);
+  });
+
+  app.get("/admin/categories", {
+    schema: {
+      tags: ["Admin"],
+      summary: "List product categories",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: openApiSchemas.adminCategoriesResponse,
+        401: openApiSchemas.error,
+        503: openApiSchemas.error,
+      },
+    },
+  }, async () => ok(await listCategoriesInDatabase()));
+
+  app.post("/admin/categories", {
+    schema: {
+      tags: ["Admin"],
+      summary: "Create or update product category",
+      security: [{ bearerAuth: [] }],
+      body: openApiSchemas.adminCategoryBody,
+      response: {
+        200: openApiSchemas.adminCategoryResponse,
+        400: openApiSchemas.error,
+        401: openApiSchemas.error,
+        503: openApiSchemas.error,
+      },
+    },
+  }, async (request) => {
+    const category = categoryBodySchema.parse(request.body);
+    const savedCategory = await upsertCategoryInDatabase(category);
+
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "upsert",
+      entityType: "category",
+      entityId: savedCategory.id,
+      summary: `Saved category ${savedCategory.name}`,
+    });
+
+    return ok(savedCategory);
+  });
+
+  app.delete("/admin/categories/:id", {
+    schema: {
+      tags: ["Admin"],
+      summary: "Archive product category",
+      security: [{ bearerAuth: [] }],
+      params: openApiSchemas.idParams,
+      response: {
+        200: openApiSchemas.adminArchiveResponse,
+        401: openApiSchemas.error,
+        404: openApiSchemas.error,
+        503: openApiSchemas.error,
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = idParamSchema.parse(request.params);
+    const archived = await softDeleteCategoryInDatabase(id);
+
+    if (!archived) {
+      return reply.status(404).send({
+        error: {
+          code: "CATEGORY_NOT_FOUND",
+          message: "Category not found.",
+        },
+      });
+    }
+
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "archive",
+      entityType: "category",
+      entityId: id,
+      summary: `Archived category ${id}`,
+    });
+
+    return ok({ archived: true });
   });
 
   app.delete("/admin/collections/:id", {

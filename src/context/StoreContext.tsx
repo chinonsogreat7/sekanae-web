@@ -67,7 +67,7 @@ function readStorage<TValue>(key: string, fallback: TValue): TValue {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [currency, setCurrency] = useState<CurrencyCode>("USD");
+  const [currency, setCurrency] = useState<CurrencyCode>("EUR");
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(defaultExchangeRates);
   const [defaultShippingAmount, setDefaultShippingAmount] = useState(35);
   const [cartItems, setCartItems] = useState<CartItem[]>(() => readStorage<CartItem[]>(cartStorageKey, []));
@@ -142,10 +142,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
-  const subtotal = cartProducts.reduce(
-    (total, item) => total + item.product.price * item.quantity + (item.giftWrap ? 18 : 0),
-    0
-  );
+  const subtotal = cartProducts.reduce((total, item) => total + item.product.price * item.quantity, 0);
 
   function getDefaultColor(productId: string, color?: string) {
     return color ?? products.find((product) => product.id === productId)?.colors[0] ?? "Default";

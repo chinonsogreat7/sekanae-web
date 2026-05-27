@@ -1,10 +1,32 @@
 import { CreditCard, LockKeyhole, Truck } from "lucide-react";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { createCheckoutOrder, createCheckoutSession, type CheckoutAddress } from "../api/orders";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageMeta } from "../components/PageMeta";
 import { useStore } from "../context/StoreContext";
 import { formatMoney } from "../utils/money";
+
+const pendingCheckoutStorageKey = "sekanae_pending_checkout";
+
+function readFormValue(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function buildCheckoutAddress(formData: FormData): CheckoutAddress {
+  const line2 = readFormValue(formData, "addressLine2");
+  const region = readFormValue(formData, "region");
+  const postalCode = readFormValue(formData, "postalCode");
+
+  return {
+    line1: readFormValue(formData, "addressLine1"),
+    ...(line2 ? { line2 } : {}),
+    city: readFormValue(formData, "city"),
+    ...(region ? { region } : {}),
+    ...(postalCode ? { postalCode } : {}),
+    country: readFormValue(formData, "country"),
+  };
+}
 
 export function CheckoutPage() {
   const {
@@ -13,31 +35,69 @@ export function CheckoutPage() {
     exchangeRates,
     defaultShippingAmount,
     subtotal,
-    clearCart,
     customerAccount,
     openAccountPrompt,
   } = useStore();
-  const [isComplete, setIsComplete] = useState(false);
-  const shipping = subtotal > 500 ? 0 : defaultShippingAmount;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const shipping = defaultShippingAmount;
+  const hasGiftWrap = cartProducts.some((item) => item.giftWrap);
 
-  if (isComplete) {
-    return (
-      <div className="page section-pad">
-        <PageMeta
-          title="Order Received"
-          path="/checkout"
-          description="Your SEKANAE order has been received."
-        />
-        <section className="confirmation">
-          <h1>Your order has been received.</h1>
-          <p>
-            Thank you for choosing SEKANAE. A confirmation note and international
-            tracking details will be sent to your inbox.
-          </p>
-          <Link to="/shop" className="primary-button">Continue shopping</Link>
-        </section>
-      </div>
-    );
+  async function handleCheckoutSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!customerAccount) {
+      openAccountPrompt("Create an account to continue to checkout.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setCheckoutError(null);
+
+    try {
+      const formData = new FormData(event.currentTarget);
+      const firstName = readFormValue(formData, "firstName");
+      const lastName = readFormValue(formData, "lastName");
+      const email = readFormValue(formData, "email").toLowerCase();
+      const giftWrapItems = cartProducts
+        .filter((item) => item.giftWrap)
+        .map((item) => `${item.product.name} (${item.color})`);
+      const notes = [
+        readFormValue(formData, "notes"),
+        giftWrapItems.length > 0 ? `Gift packaging requested for: ${giftWrapItems.join(", ")}.` : "",
+      ].filter(Boolean).join("\n");
+      const order = await createCheckoutOrder({
+        currency,
+        customer: {
+          email,
+          name: `${firstName} ${lastName}`.trim(),
+        },
+        shippingAddress: buildCheckoutAddress(formData),
+        billingAddress: buildCheckoutAddress(formData),
+        items: cartProducts.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          color: item.color,
+        })),
+        ...(notes ? { notes } : {}),
+        marketingOptIn: formData.get("marketingOptIn") === "on",
+      });
+      const session = await createCheckoutSession(order.id, email);
+
+      window.sessionStorage.setItem(
+        pendingCheckoutStorageKey,
+        JSON.stringify({ orderId: order.id, email, sessionId: session.id }),
+      );
+
+      if (!session.url) {
+        throw new Error("Stripe did not return a checkout link.");
+      }
+
+      window.location.assign(session.url);
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : "Unable to start checkout. Please try again.");
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -70,13 +130,9 @@ export function CheckoutPage() {
               </button>
             </div>
           ) : (
-          <form onSubmit={(event) => {
-            event.preventDefault();
-            clearCart();
-            setIsComplete(true);
-          }}>
+          <form onSubmit={handleCheckoutSubmit}>
             <div className="form-grid">
-              <label>Email<input type="email" required placeholder="you@example.com" defaultValue={customerAccount.email} /></label>
+              <label>Email<input type="email" name="email" required placeholder="you@example.com" defaultValue={customerAccount.email} autoComplete="email" /></label>
               <CustomSelect
                 label="Country / Region"
                 name="country"
@@ -90,19 +146,31 @@ export function CheckoutPage() {
                   "Singapore",
                 ]}
               />
-              <label>First name<input required /></label>
-              <label>Last name<input required /></label>
-              <label className="wide">Address<input required /></label>
-              <label>City<input required /></label>
-              <label>Postal code<input required /></label>
+              <label>First name<input name="firstName" required defaultValue={customerAccount.firstName} autoComplete="given-name" /></label>
+              <label>Last name<input name="lastName" required defaultValue={customerAccount.lastName} autoComplete="family-name" /></label>
+              <label className="wide">Address<input name="addressLine1" required autoComplete="address-line1" /></label>
+              <label className="wide">Apartment, suite, or delivery note<input name="addressLine2" autoComplete="address-line2" /></label>
+              <label>City<input name="city" required autoComplete="address-level2" /></label>
+              <label>State / Region<input name="region" autoComplete="address-level1" /></label>
+              <label>Postal code<input name="postalCode" autoComplete="postal-code" /></label>
+              <label className="wide">Order note<textarea name="notes" placeholder="Delivery preferences, engraving notes, or timing requests" /></label>
             </div>
             <h2>Payment</h2>
-            <div className="form-grid">
-              <label className="wide">Card number<input required placeholder="4242 4242 4242 4242" /></label>
-              <label>Expiry<input required placeholder="MM / YY" /></label>
-              <label>Security code<input required placeholder="CVC" /></label>
+            <div className="stripe-handoff">
+              <CreditCard size={22} />
+              <div>
+                <strong>Secure payment opens with Stripe.</strong>
+                <p>Cards and available local payment methods are collected by Stripe, not stored by SEKANAE.</p>
+              </div>
             </div>
-            <button className="primary-button" type="submit">Place secure order</button>
+            <label className="checkbox-row checkout-checkbox">
+              <input name="marketingOptIn" type="checkbox" defaultChecked />
+              Send me collection notes and early access updates.
+            </label>
+            {checkoutError && <p className="api-status api-status-error">{checkoutError}</p>}
+            <button className="primary-button" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Opening Stripe..." : "Continue to secure payment"}
+            </button>
           </form>
           )}
         </section>
@@ -115,6 +183,9 @@ export function CheckoutPage() {
             </div>
           ))}
           <div><span>Shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
+          {hasGiftWrap && (
+            <div><span>Gift packaging</span><strong>Included by request</strong></div>
+          )}
           <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
         </aside>
       </div>

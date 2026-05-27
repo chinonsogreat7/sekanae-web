@@ -11,6 +11,40 @@ type CollectionWrite = Collection & {
   sortOrder?: number;
 };
 
+export type ProductCategoryRecord = {
+  id: string;
+  name: string;
+  sortOrder: number;
+};
+
+type CategoryRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+};
+
+type CategoryWrite = {
+  id?: string;
+  name: string;
+  sortOrder?: number;
+};
+
+function categoryIdFromName(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function mapCategory(row: CategoryRow): ProductCategoryRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    sortOrder: row.sort_order,
+  };
+}
+
 export async function upsertProductInDatabase(product: ProductWrite): Promise<Product> {
   const pool = getPool();
   const client = await pool.connect();
@@ -20,6 +54,18 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
 
   try {
     await client.query("begin");
+
+    await client.query(
+      `
+        insert into product_categories (id, name, sort_order, active)
+        values ($1, $2, 100, true)
+        on conflict (id) do update set
+          name = excluded.name,
+          active = true,
+          updated_at = now()
+      `,
+      [categoryIdFromName(product.category), product.category],
+    );
 
     await client.query(
       `
@@ -232,6 +278,52 @@ export async function softDeleteCollectionInDatabase(collectionId: string): Prom
   const result = await pool.query(
     "update collections set active = false, updated_at = now() where id = $1 and active = true",
     [collectionId],
+  );
+
+  return Boolean(result.rowCount);
+}
+
+export async function listCategoriesInDatabase(): Promise<ProductCategoryRecord[]> {
+  const pool = getPool();
+  const result = await pool.query<CategoryRow>(
+    `
+      select id, name, sort_order
+      from product_categories
+      where active = true
+      order by sort_order asc, name asc
+    `,
+  );
+
+  return result.rows.map(mapCategory);
+}
+
+export async function upsertCategoryInDatabase(category: CategoryWrite): Promise<ProductCategoryRecord> {
+  const pool = getPool();
+  const categoryName = category.name.trim();
+  const categoryId = category.id?.trim() || categoryIdFromName(categoryName);
+
+  const result = await pool.query<CategoryRow>(
+    `
+      insert into product_categories (id, name, sort_order, active)
+      values ($1, $2, $3, true)
+      on conflict (id) do update set
+        name = excluded.name,
+        sort_order = excluded.sort_order,
+        active = true,
+        updated_at = now()
+      returning id, name, sort_order
+    `,
+    [categoryId, categoryName, category.sortOrder ?? 0],
+  );
+
+  return mapCategory(result.rows[0]);
+}
+
+export async function softDeleteCategoryInDatabase(categoryId: string): Promise<boolean> {
+  const pool = getPool();
+  const result = await pool.query(
+    "update product_categories set active = false, updated_at = now() where id = $1 and active = true",
+    [categoryId],
   );
 
   return Boolean(result.rowCount);

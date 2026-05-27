@@ -35,6 +35,12 @@ export const collectionBodySchema = z.object({
   sortOrder: z.number().int().min(0).default(0),
 });
 
+export const categoryBodySchema = z.object({
+  id: z.string().min(1).optional(),
+  name: z.string().min(1),
+  sortOrder: z.number().int().min(0).default(0),
+});
+
 export const idParamSchema = z.object({
   id: z.string().min(1),
 });

@@ -10,6 +10,7 @@ import { LookbookPage } from "./pages/LookbookPage";
 import { AboutPage } from "./pages/AboutPage";
 import { CartPage } from "./pages/CartPage";
 import { CheckoutPage } from "./pages/CheckoutPage";
+import { CheckoutSuccessPage } from "./pages/CheckoutSuccessPage";
 import { ClientCarePage } from "./pages/ClientCarePage";
 import { BridalPage } from "./pages/BridalPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="/client-care" element={<ClientCarePage />} />
           <Route path="/bridal" element={<BridalPage />} />
           <Route path="/shipping" element={<ShippingPage />} />
