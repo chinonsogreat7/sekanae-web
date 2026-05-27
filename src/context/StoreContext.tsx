@@ -210,6 +210,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return undefined;
     }
 
+    if (accountNotice.tone === "error") {
+      return undefined;
+    }
+
     const timeout = window.setTimeout(() => setAccountNotice(null), 5200);
     return () => window.clearTimeout(timeout);
   }, [accountNotice]);
@@ -682,7 +686,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         <div
           className={accountNotice.tone === "error" ? "account-toast account-toast-error" : "account-toast"}
           role={accountNotice.tone === "error" ? "alert" : "status"}
-          aria-live="polite"
+          aria-live={accountNotice.tone === "error" ? "assertive" : "polite"}
         >
           <div>
             <strong>{accountNotice.message}</strong>

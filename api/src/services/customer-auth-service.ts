@@ -13,7 +13,6 @@ import {
   upsertCustomerProfile,
   type CustomerProfile,
 } from "../repositories/customer-auth-repository.js";
-import { getCustomerByEmailFromDatabase } from "../repositories/customer-repository.js";
 import { baseEmailHtml, escapeHtml, sendEmail } from "./email-service.js";
 
 export class CustomerAuthServiceError extends Error {
@@ -63,26 +62,6 @@ function publicCustomer(profile: CustomerProfile) {
   };
 }
 
-function fallbackNameParts(name: string | undefined, email: string) {
-  const trimmedName = name?.trim();
-
-  if (trimmedName) {
-    const [firstName, ...rest] = trimmedName.split(/\s+/);
-
-    return {
-      firstName: firstName || "SEKANAE",
-      lastName: rest.join(" ") || "Customer",
-    };
-  }
-
-  const localPart = email.split("@")[0]?.trim();
-
-  return {
-    firstName: localPart || "SEKANAE",
-    lastName: "Customer",
-  };
-}
-
 async function sendLoginCodeEmail(input: {
   email: string;
   code: string;
@@ -119,21 +98,19 @@ export async function requestCustomerLoginCode(input: {
 
   const email = normalizeEmail(input.email);
   const existingProfile = await getCustomerProfileByEmail(email);
-  const existingCustomer = existingProfile ? undefined : await getCustomerByEmailFromDatabase(email);
 
-  if (input.purpose === "sign-in" && !existingProfile && !existingCustomer) {
+  if (input.purpose === "sign-in" && !existingProfile) {
     throw new CustomerAuthServiceError("PROFILE_NOT_FOUND", "No SEKANAE account was found for that email.", 404);
   }
 
-  const customerNameParts = existingCustomer ? fallbackNameParts(existingCustomer.name, email) : undefined;
   const code = generateCode();
   const salt = randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + config.CUSTOMER_LOGIN_CODE_TTL_SECONDS * 1000);
 
   await insertCustomerLoginCode({
     email,
-    firstName: input.firstName?.trim() || customerNameParts?.firstName,
-    lastName: input.lastName?.trim() || customerNameParts?.lastName,
+    firstName: input.purpose === "create" ? input.firstName?.trim() : undefined,
+    lastName: input.purpose === "create" ? input.lastName?.trim() : undefined,
     purpose: input.purpose,
     codeHash: hashValue(code, salt),
     codeSalt: salt,
@@ -184,7 +161,7 @@ export async function verifyCustomerLoginCode(input: { email: string; code: stri
   let profile = await getCustomerProfileByEmail(email);
 
   if (!profile) {
-    if (!codeRecord.firstName || !codeRecord.lastName) {
+    if (codeRecord.purpose !== "create" || !codeRecord.firstName || !codeRecord.lastName) {
       throw new CustomerAuthServiceError("PROFILE_NOT_FOUND", "Create an account before signing in.", 404);
     }
 
