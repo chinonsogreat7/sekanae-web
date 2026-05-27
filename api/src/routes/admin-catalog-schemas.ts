@@ -38,6 +38,7 @@ export const collectionBodySchema = z.object({
 export const categoryBodySchema = z.object({
   id: z.string().min(1).optional(),
   name: z.string().min(1),
+  image: z.string().url().optional(),
   sortOrder: z.number().int().min(0).default(0),
 });
 

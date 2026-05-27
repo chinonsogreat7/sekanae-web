@@ -31,6 +31,7 @@ import { type ChangeEvent, type ClipboardEvent, FormEvent, useEffect, useMemo, u
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getProducts } from "../api/client";
 import { getApiBaseUrl } from "../api/config";
+import { CustomSelect } from "../components/CustomSelect";
 import { categories as fallbackCategories, products as fallbackProducts, type Collection, type CurrencyCode, type Product } from "../data/catalog";
 import { defaultExchangeRates, formatCurrencyAmount, formatMoney, type ExchangeRates } from "../utils/money";
 
@@ -190,12 +191,14 @@ type CollectionDraft = Collection & {
 type ProductCategoryOption = {
   id: string;
   name: string;
+  image?: string;
   sortOrder: number;
 };
 
 type CategoryDraft = {
   id: string;
   name: string;
+  image: string;
   sortOrder: string;
 };
 
@@ -366,6 +369,7 @@ function createCategoryDraft(): CategoryDraft {
   return {
     id: "",
     name: "",
+    image: "",
     sortOrder: "0",
   };
 }
@@ -381,6 +385,7 @@ function categoryToDraft(category: ProductCategoryOption): CategoryDraft {
   return {
     id: category.id,
     name: category.name,
+    image: category.image ?? "",
     sortOrder: String(category.sortOrder),
   };
 }
@@ -519,12 +524,14 @@ export function AdminPage() {
   const [isNewsletterSourceMode, setIsNewsletterSourceMode] = useState(false);
   const newsletterEditorRef = useRef<HTMLDivElement | null>(null);
   const collectionFormRef = useRef<HTMLFormElement | null>(null);
+  const categoryFormRef = useRef<HTMLFormElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [showImageUrlEditor, setShowImageUrlEditor] = useState(false);
+  const [customProductTag, setCustomProductTag] = useState("");
+  const [customProductTagError, setCustomProductTagError] = useState<string | null>(null);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
   const [productPage, setProductPage] = useState(1);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -548,9 +555,11 @@ export function AdminPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionDraft, setCollectionDraft] = useState<CollectionDraft>(() => createCollectionDraft());
   const [collectionMessage, setCollectionMessage] = useState<string | null>(null);
+  const [isUploadingCollectionImage, setIsUploadingCollectionImage] = useState(false);
   const [categories, setCategories] = useState<ProductCategoryOption[]>([]);
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(() => createCategoryDraft());
   const [categoryMessage, setCategoryMessage] = useState<string | null>(null);
+  const [isUploadingCategoryImage, setIsUploadingCategoryImage] = useState(false);
   const [conciergeRequests, setConciergeRequests] = useState<ConciergeRequest[]>([]);
   const [conciergeFilter, setConciergeFilter] = useState<"" | ConciergeStatus>("");
   const [conciergeMessage, setConciergeMessage] = useState<string | null>(null);
@@ -669,12 +678,16 @@ export function AdminPage() {
     if (routePath === "products/new") {
       setProductDraft(createProductDraft());
       setProductMessage(null);
+      setCustomProductTag("");
+      setCustomProductTagError(null);
       return;
     }
 
     if (routePath.startsWith("products/") && routePath.endsWith("/edit") && selectedProduct) {
       setProductDraft(productToDraft(selectedProduct));
       setProductMessage(null);
+      setCustomProductTag("");
+      setCustomProductTagError(null);
     }
   }, [routePath, selectedProduct]);
 
@@ -817,6 +830,11 @@ export function AdminPage() {
     event.preventDefault();
     setCollectionMessage(null);
 
+    if (!collectionDraft.image.trim()) {
+      setCollectionMessage("Upload a collection image before saving.");
+      return;
+    }
+
     try {
       const payload = await readAdmin<Collection>("/api/admin/collections", {
         method: "POST",
@@ -873,6 +891,7 @@ export function AdminPage() {
         body: JSON.stringify({
           id: categoryDraft.id.trim() || undefined,
           name: categoryDraft.name.trim(),
+          image: categoryDraft.image.trim() || undefined,
           sortOrder: Number(categoryDraft.sortOrder),
         }),
       });
@@ -906,6 +925,12 @@ export function AdminPage() {
     }
   }
 
+  function editCategory(category: ProductCategoryOption) {
+    setCategoryDraft(categoryToDraft(category));
+    setCategoryMessage(`Editing ${category.name}. Update the form and save when ready.`);
+    categoryFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -915,8 +940,7 @@ export function AdminPage() {
     }
 
     if (!parseList(productDraft.images).length) {
-      setShowImageUrlEditor(true);
-      setProductMessage("Add at least one product image before saving. Upload images or paste image URLs.");
+      setProductMessage("Upload at least one product image before saving.");
       return;
     }
 
@@ -999,6 +1023,7 @@ export function AdminPage() {
     const tags = parseList(productDraft.tags);
     const nextTags = tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag];
 
+    setCustomProductTagError(null);
     setProductDraft((current) => ({
       ...current,
       tags: nextTags.join(", "),
@@ -1008,15 +1033,63 @@ export function AdminPage() {
   }
 
   function addProductTag() {
-    const tag = window.prompt("Tag name");
+    const tag = customProductTag.trim().replace(/\s+/g, " ");
 
-    if (!tag?.trim()) {
+    if (!tag) {
+      setCustomProductTagError("Enter a tag name first.");
       return;
     }
 
     const tags = parseList(productDraft.tags);
-    const nextTags = [...new Set([...tags, tag.trim()])];
-    setProductDraft((current) => ({ ...current, tags: nextTags.join(", ") }));
+
+    if (tags.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+      setCustomProductTagError(`${tag} is already selected.`);
+      return;
+    }
+
+    const nextTags = [...tags, tag];
+    setProductDraft((current) => ({
+      ...current,
+      tags: nextTags.join(", "),
+      isNew: nextTags.includes("New arrival"),
+      isBridalPreview: nextTags.includes("Bridal preview"),
+    }));
+    setCustomProductTag("");
+    setCustomProductTagError(null);
+  }
+
+  async function uploadAdminImages(files: File[]) {
+    if (!adminToken) {
+      throw new Error("Sign in again to upload images.");
+    }
+
+    const signaturePayload = await readAdmin<CloudinarySignature>("/api/admin/media/cloudinary-signature", {
+      method: "POST",
+    });
+    const uploadedUrls: string[] = [];
+
+    for (const file of files) {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("api_key", signaturePayload.data.apiKey);
+      body.append("timestamp", String(signaturePayload.data.timestamp));
+      body.append("folder", signaturePayload.data.folder);
+      body.append("signature", signaturePayload.data.signature);
+
+      const response = await fetch(signaturePayload.data.uploadUrl, {
+        method: "POST",
+        body,
+      });
+      const payload = await response.json() as CloudinaryUploadResponse;
+
+      if (!response.ok || !payload.secure_url) {
+        throw new Error(payload.error?.message ?? `Image upload failed for ${file.name}.`);
+      }
+
+      uploadedUrls.push(payload.secure_url);
+    }
+
+    return uploadedUrls;
   }
 
   async function uploadProductImages(event: ChangeEvent<HTMLInputElement>) {
@@ -1027,40 +1100,11 @@ export function AdminPage() {
       return;
     }
 
-    if (!adminToken) {
-      setProductMessage("Sign in again to upload images.");
-      return;
-    }
-
     setIsUploadingImages(true);
     setProductMessage(null);
 
     try {
-      const signaturePayload = await readAdmin<CloudinarySignature>("/api/admin/media/cloudinary-signature", {
-        method: "POST",
-      });
-      const uploadedUrls: string[] = [];
-
-      for (const file of files) {
-        const body = new FormData();
-        body.append("file", file);
-        body.append("api_key", signaturePayload.data.apiKey);
-        body.append("timestamp", String(signaturePayload.data.timestamp));
-        body.append("folder", signaturePayload.data.folder);
-        body.append("signature", signaturePayload.data.signature);
-
-        const response = await fetch(signaturePayload.data.uploadUrl, {
-          method: "POST",
-          body,
-        });
-        const payload = await response.json() as CloudinaryUploadResponse;
-
-        if (!response.ok || !payload.secure_url) {
-          throw new Error(payload.error?.message ?? `Image upload failed for ${file.name}.`);
-        }
-
-        uploadedUrls.push(payload.secure_url);
-      }
+      const uploadedUrls = await uploadAdminImages(files);
 
       setProductDraft((current) => ({
         ...current,
@@ -1071,6 +1115,50 @@ export function AdminPage() {
       setProductMessage(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
       setIsUploadingImages(false);
+    }
+  }
+
+  async function uploadCollectionImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingCollectionImage(true);
+    setCollectionMessage(null);
+
+    try {
+      const [uploadedUrl] = await uploadAdminImages([file]);
+      setCollectionDraft((current) => ({ ...current, image: uploadedUrl }));
+      setCollectionMessage("Collection image uploaded.");
+    } catch (error) {
+      setCollectionMessage(error instanceof Error ? error.message : "Collection image upload failed.");
+    } finally {
+      setIsUploadingCollectionImage(false);
+    }
+  }
+
+  async function uploadCategoryImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    setIsUploadingCategoryImage(true);
+    setCategoryMessage(null);
+
+    try {
+      const [uploadedUrl] = await uploadAdminImages([file]);
+      setCategoryDraft((current) => ({ ...current, image: uploadedUrl }));
+      setCategoryMessage("Category image uploaded.");
+    } catch (error) {
+      setCategoryMessage(error instanceof Error ? error.message : "Category image upload failed.");
+    } finally {
+      setIsUploadingCategoryImage(false);
     }
   }
 
@@ -1777,17 +1865,6 @@ export function AdminPage() {
                   ))}
                 </div>
               )}
-              <button className="admin-secondary-action" type="button" onClick={() => setShowImageUrlEditor((current) => !current)}>
-                {showImageUrlEditor ? "Hide image URL editor" : "Paste image URLs instead"}
-              </button>
-              {showImageUrlEditor && (
-                <textarea
-                  value={productDraft.images}
-                  onChange={(event) => setProductDraft((current) => ({ ...current, images: event.target.value }))}
-                  placeholder="One image URL per line"
-                  required
-                />
-              )}
             </div>
           </section>
 
@@ -1828,18 +1905,48 @@ export function AdminPage() {
               </label>
               <div className="admin-control-group">
                 Product tags
-                <div className="admin-tag-picker">
-                  {tagOptions.map((tag) => (
-                    <button
-                      type="button"
-                      key={tag}
-                      className={parseList(productDraft.tags).includes(tag) ? "is-selected" : ""}
-                      onClick={() => toggleProductTag(tag)}
-                    >
-                      {tag}
+                <div className="admin-tag-manager">
+                  <div className="admin-tag-picker" aria-label="Product tag options">
+                    {tagOptions.map((tag) => (
+                      <button
+                        type="button"
+                        key={tag}
+                        className={parseList(productDraft.tags).includes(tag) ? "is-selected" : ""}
+                        onClick={() => toggleProductTag(tag)}
+                        aria-pressed={parseList(productDraft.tags).includes(tag)}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="admin-tag-composer">
+                    <label>
+                      Tag name
+                      <input
+                        value={customProductTag}
+                        onChange={(event) => {
+                          setCustomProductTag(event.target.value);
+                          setCustomProductTagError(null);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addProductTag();
+                          }
+                        }}
+                        placeholder="Resort edit"
+                      />
+                    </label>
+                    <button type="button" onClick={addProductTag}>
+                      <PackagePlus size={16} aria-hidden="true" />
+                      Create tag
                     </button>
-                  ))}
-                  <button type="button" onClick={addProductTag}>Add tag</button>
+                  </div>
+                  {customProductTagError && (
+                    <div className="admin-inline-error" role="alert">
+                      {customProductTagError}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1893,15 +2000,16 @@ export function AdminPage() {
             </button>
           </div>
           <form className="admin-filters" onSubmit={(event) => { event.preventDefault(); void readOrders(); }}>
-            <label>
-              Status
-              <select value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value as "" | OrderStatus)}>
-                <option value="">All</option>
-                {orderStatuses.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </label>
+            <CustomSelect
+              label="Status"
+              className="admin-custom-select"
+              value={orderStatusFilter}
+              onChange={(value) => setOrderStatusFilter(value as "" | OrderStatus)}
+              options={[
+                { label: "All", value: "" },
+                ...orderStatuses.map((status) => ({ label: status, value: status })),
+              ]}
+            />
             <label>
               Customer email
               <input
@@ -1949,22 +2057,20 @@ export function AdminPage() {
                 ))}
               </div>
               <div className="admin-form-grid admin-form-grid-compact">
-                <label>
-                  Order status
-                  <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as OrderStatus)}>
-                    {orderStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Payment
-                  <select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
-                    {paymentStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </label>
+                <CustomSelect
+                  label="Order status"
+                  className="admin-custom-select"
+                  value={orderStatus}
+                  onChange={(value) => setOrderStatus(value as OrderStatus)}
+                  options={orderStatuses.map((status) => ({ label: status, value: status }))}
+                />
+                <CustomSelect
+                  label="Payment"
+                  className="admin-custom-select"
+                  value={paymentStatus}
+                  onChange={(value) => setPaymentStatus(value as PaymentStatus)}
+                  options={paymentStatuses.map((status) => ({ label: status, value: status }))}
+                />
                 <label className="admin-field-wide">
                   Notes
                   <textarea value={orderNotes} onChange={(event) => setOrderNotes(event.target.value)} />
@@ -2282,14 +2388,20 @@ export function AdminPage() {
                   onChange={(event) => setCollectionDraft((current) => ({ ...current, sortOrder: event.target.value }))}
                 />
               </label>
-              <label className="admin-field-wide">
-                Image URL
-                <input
-                  value={collectionDraft.image}
-                  onChange={(event) => setCollectionDraft((current) => ({ ...current, image: event.target.value }))}
-                  required
-                />
-              </label>
+              <div className="admin-field-wide admin-form-stack">
+                <div className="admin-media-upload">
+                  <label className="admin-upload-button">
+                    {isUploadingCollectionImage ? "Uploading image" : collectionDraft.image ? "Replace image" : "Upload image"}
+                    <input type="file" accept="image/*" onChange={uploadCollectionImage} disabled={isUploadingCollectionImage} />
+                  </label>
+                  <span>{collectionDraft.image ? "Image uploaded" : "No image uploaded"}</span>
+                </div>
+                {collectionDraft.image && (
+                  <figure className="admin-single-image-preview">
+                    <img src={collectionDraft.image} alt={collectionDraft.title || "Collection preview"} />
+                  </figure>
+                )}
+              </div>
               <label className="admin-field-wide">
                 Description
                 <textarea
@@ -2340,7 +2452,7 @@ export function AdminPage() {
               <PackagePlus size={16} /> New category
             </button>
           </div>
-          <form className="admin-product-form admin-product-form-standalone" onSubmit={saveCategory}>
+          <form ref={categoryFormRef} className="admin-product-form admin-product-form-standalone" onSubmit={saveCategory}>
             <div className="admin-form-grid admin-form-grid-compact">
               <label>
                 Category name
@@ -2361,18 +2473,33 @@ export function AdminPage() {
                   onChange={(event) => setCategoryDraft((current) => ({ ...current, sortOrder: event.target.value }))}
                 />
               </label>
+              <div className="admin-field-wide admin-form-stack">
+                <div className="admin-media-upload">
+                  <label className="admin-upload-button">
+                    {isUploadingCategoryImage ? "Uploading image" : categoryDraft.image ? "Replace image" : "Upload image"}
+                    <input type="file" accept="image/*" onChange={uploadCategoryImage} disabled={isUploadingCategoryImage} />
+                  </label>
+                  <span>{categoryDraft.image ? "Image uploaded" : "No image uploaded"}</span>
+                </div>
+                {categoryDraft.image && (
+                  <figure className="admin-single-image-preview admin-single-image-preview-compact">
+                    <img src={categoryDraft.image} alt={categoryDraft.name || "Category preview"} />
+                  </figure>
+                )}
+              </div>
             </div>
             <button type="submit">Save category</button>
           </form>
           <div className="admin-category-list">
             {categories.map((category) => (
               <div key={category.id}>
+                {category.image && <img src={category.image} alt="" />}
                 <span>
                   <strong>{category.name}</strong>
                   <small>Sort {category.sortOrder}</small>
                 </span>
                 <span className="admin-row-actions">
-                  <button type="button" onClick={() => setCategoryDraft(categoryToDraft(category))}>Edit</button>
+                  <button type="button" onClick={() => editCategory(category)}>Edit</button>
                   <button className="admin-danger" type="button" onClick={() => archiveCategory(category.id)}>
                     <Trash2 size={14} /> Archive
                   </button>
@@ -2399,15 +2526,16 @@ export function AdminPage() {
             <button type="button" onClick={readConcierge}>Refresh</button>
           </div>
           <form className="admin-filters" onSubmit={(event) => { event.preventDefault(); void readConcierge(); }}>
-            <label>
-              Status
-              <select value={conciergeFilter} onChange={(event) => setConciergeFilter(event.target.value as "" | ConciergeStatus)}>
-                <option value="">All</option>
-                {conciergeStatuses.map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </label>
+            <CustomSelect
+              label="Status"
+              className="admin-custom-select"
+              value={conciergeFilter}
+              onChange={(value) => setConciergeFilter(value as "" | ConciergeStatus)}
+              options={[
+                { label: "All", value: "" },
+                ...conciergeStatuses.map((status) => ({ label: status, value: status })),
+              ]}
+            />
             <button type="submit">Apply</button>
           </form>
           <div className="admin-request-list">
@@ -2422,28 +2550,20 @@ export function AdminPage() {
                   <h3>{request.topic}</h3>
                   <p>{request.message}</p>
                 </div>
-                <label>
-                  Status
-                  <select
-                    value={request.status}
-                    onChange={(event) => updateConciergeRequest(request.id, { status: event.target.value as ConciergeStatus })}
-                  >
-                    {conciergeStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Reply
-                  <select
-                    value={request.replyStatus}
-                    onChange={(event) => updateConciergeRequest(request.id, { replyStatus: event.target.value as ReplyStatus })}
-                  >
-                    {replyStatuses.map((status) => (
-                      <option key={status} value={status}>{status}</option>
-                    ))}
-                  </select>
-                </label>
+                <CustomSelect
+                  label="Status"
+                  className="admin-custom-select"
+                  value={request.status}
+                  onChange={(value) => updateConciergeRequest(request.id, { status: value as ConciergeStatus })}
+                  options={conciergeStatuses.map((status) => ({ label: status, value: status }))}
+                />
+                <CustomSelect
+                  label="Reply"
+                  className="admin-custom-select"
+                  value={request.replyStatus}
+                  onChange={(value) => updateConciergeRequest(request.id, { replyStatus: value as ReplyStatus })}
+                  options={replyStatuses.map((status) => ({ label: status, value: status }))}
+                />
                 <label className="admin-field-wide">
                   Internal notes
                   <textarea
@@ -2495,17 +2615,13 @@ export function AdminPage() {
           {settingsDraft ? (
             <form className="admin-product-form admin-product-form-standalone" onSubmit={saveSettings}>
               <div className="admin-form-grid">
-                <label>
-                  Currency
-                  <select
-                    value={settingsDraft.defaultCurrency}
-                    onChange={(event) => setSettingsDraft((current) => current ? ({ ...current, defaultCurrency: event.target.value as CurrencyCode }) : current)}
-                  >
-                    {currencyOptions.map((currency) => (
-                      <option key={currency} value={currency}>{currency}</option>
-                    ))}
-                  </select>
-                </label>
+                <CustomSelect
+                  label="Currency"
+                  className="admin-custom-select"
+                  value={settingsDraft.defaultCurrency}
+                  onChange={(value) => setSettingsDraft((current) => current ? ({ ...current, defaultCurrency: value as CurrencyCode }) : current)}
+                  options={currencyOptions.map((currency) => ({ label: currency, value: currency }))}
+                />
                 <label>
                   Market country
                   <input

@@ -6,7 +6,8 @@ import { formatMoney } from "../utils/money";
 
 export function CartPage() {
   const { cartProducts, currency, exchangeRates, defaultShippingAmount, subtotal, updateQuantity, removeFromCart, toggleGiftWrap } = useStore();
-  const shipping = defaultShippingAmount;
+  const hasCartItems = cartProducts.length > 0;
+  const shipping = hasCartItems ? defaultShippingAmount : 0;
 
   return (
     <div className="page section-pad">
@@ -63,13 +64,24 @@ export function CartPage() {
         <aside className="summary-card">
           <h2>Order Summary</h2>
           <div><span>Subtotal</span><strong>{formatMoney(subtotal, currency, exchangeRates)}</strong></div>
-          <div><span>International shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
-          <label>
-            Promo code
-            <input type="text" placeholder="Enter code" />
-          </label>
-          <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
-          <Link to="/checkout" className="primary-button">Continue to checkout</Link>
+          {hasCartItems ? (
+            <>
+              <div><span>International shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
+              <label>
+                Promo code
+                <input type="text" placeholder="Enter code" />
+              </label>
+              <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
+              <Link to="/checkout" className="primary-button">Continue to checkout</Link>
+            </>
+          ) : (
+            <>
+              <p className="summary-note">Add a piece to your cart before checkout. Shipping and totals will update once there is something to send.</p>
+              <div><span>International shipping</span><strong>Not calculated</strong></div>
+              <div className="summary-total"><span>Total</span><strong>{formatMoney(0, currency, exchangeRates)}</strong></div>
+              <Link to="/shop" className="primary-button">Shop the collection</Link>
+            </>
+          )}
         </aside>
       </div>
     </div>

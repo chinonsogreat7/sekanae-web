@@ -14,18 +14,21 @@ type CollectionWrite = Collection & {
 export type ProductCategoryRecord = {
   id: string;
   name: string;
+  image?: string;
   sortOrder: number;
 };
 
 type CategoryRow = {
   id: string;
   name: string;
+  image_url: string | null;
   sort_order: number;
 };
 
 type CategoryWrite = {
   id?: string;
   name: string;
+  image?: string;
   sortOrder?: number;
 };
 
@@ -41,6 +44,7 @@ function mapCategory(row: CategoryRow): ProductCategoryRecord {
   return {
     id: row.id,
     name: row.name,
+    image: row.image_url ?? undefined,
     sortOrder: row.sort_order,
   };
 }
@@ -287,7 +291,7 @@ export async function listCategoriesInDatabase(): Promise<ProductCategoryRecord[
   const pool = getPool();
   const result = await pool.query<CategoryRow>(
     `
-      select id, name, sort_order
+      select id, name, image_url, sort_order
       from product_categories
       where active = true
       order by sort_order asc, name asc
@@ -304,16 +308,17 @@ export async function upsertCategoryInDatabase(category: CategoryWrite): Promise
 
   const result = await pool.query<CategoryRow>(
     `
-      insert into product_categories (id, name, sort_order, active)
-      values ($1, $2, $3, true)
+      insert into product_categories (id, name, image_url, sort_order, active)
+      values ($1, $2, $3, $4, true)
       on conflict (id) do update set
         name = excluded.name,
+        image_url = coalesce(excluded.image_url, product_categories.image_url),
         sort_order = excluded.sort_order,
         active = true,
         updated_at = now()
-      returning id, name, sort_order
+      returning id, name, image_url, sort_order
     `,
-    [categoryId, categoryName, category.sortOrder ?? 0],
+    [categoryId, categoryName, category.image ?? null, category.sortOrder ?? 0],
   );
 
   return mapCategory(result.rows[0]);

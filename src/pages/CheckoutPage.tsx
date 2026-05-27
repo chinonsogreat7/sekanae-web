@@ -40,11 +40,17 @@ export function CheckoutPage() {
   } = useStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const shipping = defaultShippingAmount;
+  const hasCartItems = cartProducts.length > 0;
+  const shipping = hasCartItems ? defaultShippingAmount : 0;
   const hasGiftWrap = cartProducts.some((item) => item.giftWrap);
 
   async function handleCheckoutSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!hasCartItems) {
+      setCheckoutError("Add a piece to your cart before checkout.");
+      return;
+    }
 
     if (!customerAccount) {
       openAccountPrompt("Create an account to continue to checkout.");
@@ -115,7 +121,7 @@ export function CheckoutPage() {
             <span><Truck size={16} /> International shipping</span>
             <span><CreditCard size={16} /> Card, PayPal, and bank options</span>
           </div>
-          {cartProducts.length === 0 ? (
+          {!hasCartItems ? (
             <div className="empty-state checkout-gate">
               <h2>Your cart is quiet.</h2>
               <p>Add a piece before continuing to checkout.</p>
@@ -188,13 +194,17 @@ export function CheckoutPage() {
         </section>
         <aside className="summary-card">
           <h2>Order Summary</h2>
-          {cartProducts.map((item) => (
-            <div key={item.productId}>
-              <span>{item.product.name} / {item.color} x {item.quantity}</span>
-              <strong>{formatMoney(item.product.price * item.quantity, currency, exchangeRates)}</strong>
-            </div>
-          ))}
-          <div><span>Shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
+          {hasCartItems ? (
+            cartProducts.map((item) => (
+              <div key={item.productId}>
+                <span>{item.product.name} / {item.color} x {item.quantity}</span>
+                <strong>{formatMoney(item.product.price * item.quantity, currency, exchangeRates)}</strong>
+              </div>
+            ))
+          ) : (
+            <p className="summary-note">No checkout is needed yet. Add a piece to see shipping, taxes, and payment options.</p>
+          )}
+          <div><span>Shipping</span><strong>{hasCartItems ? (shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)) : "Not calculated"}</strong></div>
           {hasGiftWrap && (
             <div><span>Gift packaging</span><strong>Included by request</strong></div>
           )}

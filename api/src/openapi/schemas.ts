@@ -84,6 +84,7 @@ const categorySchema = {
   properties: {
     id: { type: "string" },
     name: { type: "string" },
+    image: { type: "string", format: "uri" },
     sortOrder: { type: "integer", minimum: 0 },
   },
 } as const;
@@ -272,6 +273,7 @@ const adminCategoryBodySchema = {
   properties: {
     id: { type: "string", minLength: 1 },
     name: { type: "string", minLength: 1 },
+    image: { type: "string", format: "uri" },
     sortOrder: { type: "integer", minimum: 0, default: 0 },
   },
 } as const;

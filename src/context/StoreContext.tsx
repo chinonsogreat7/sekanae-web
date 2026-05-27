@@ -54,6 +54,7 @@ type StoreContextValue = {
 type AccountNotice = {
   message: string;
   detail?: string;
+  tone?: "success" | "error";
 };
 
 type MarketSettingsResponse = {
@@ -116,6 +117,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [accountFormHelp, setAccountFormHelp] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   const [accountNotice, setAccountNotice] = useState<AccountNotice | null>(null);
+
+  function showAccountError(message: string) {
+    setAccountFormError(message);
+    setAccountNotice({
+      message,
+      tone: "error",
+    });
+  }
 
   useEffect(() => {
     let isCurrent = true;
@@ -325,7 +334,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const validationError = validateCustomerAccount(account);
 
     if (validationError) {
-      setAccountFormError(validationError);
+      showAccountError(validationError);
       return;
     }
 
@@ -350,7 +359,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAccountPromptReason(`Enter the 6-digit code sent to ${email}.`);
       setAccountFormHelp(result.devCode ? `Development code: ${result.devCode}` : null);
     } catch (error) {
-      setAccountFormError(error instanceof Error ? error.message : "Unable to send verification code.");
+      showAccountError(error instanceof Error ? error.message : "Unable to send verification code.");
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -360,7 +369,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const email = emailInput.trim().toLowerCase();
 
     if (!emailPattern.test(email)) {
-      setAccountFormError("Enter a valid email address.");
+      showAccountError("Enter a valid email address.");
       return;
     }
 
@@ -379,7 +388,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setAccountPromptReason(`Enter the 6-digit code sent to ${email}.`);
       setAccountFormHelp(result.devCode ? `Development code: ${result.devCode}` : null);
     } catch (error) {
-      setAccountFormError(error instanceof Error ? error.message : "Unable to send sign-in code.");
+      showAccountError(error instanceof Error ? error.message : "Unable to send sign-in code.");
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -389,12 +398,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const code = codeInput.trim();
 
     if (!pendingAuth) {
-      setAccountFormError("Request a new sign-in code.");
+      showAccountError("Request a new sign-in code.");
       return;
     }
 
     if (!codePattern.test(code)) {
-      setAccountFormError("Enter the 6-digit code from your email.");
+      showAccountError("Enter the 6-digit code from your email.");
       return;
     }
 
@@ -420,7 +429,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         detail: `You are signed in as ${session.customer.email}.`,
       });
     } catch (error) {
-      setAccountFormError(error instanceof Error ? error.message : "Unable to verify code.");
+      showAccountError(error instanceof Error ? error.message : "Unable to verify code.");
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -493,7 +502,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 event.preventDefault();
                 void verifyCustomerSignIn(codeDraft.code);
               }}>
-                {accountFormError && <p className="form-error" role="alert">{accountFormError}</p>}
                 {accountFormHelp && <p className="form-help">{accountFormHelp}</p>}
                 <label>
                   Verification code
@@ -540,7 +548,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 event.preventDefault();
                 void signInCustomer(signInDraft.email);
               }}>
-                {accountFormError && <p className="form-error" role="alert">{accountFormError}</p>}
                 <label>
                   Email
                   <input
@@ -576,7 +583,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 event.preventDefault();
                 void createCustomerAccount(accountDraft);
               }}>
-                {accountFormError && <p className="form-error" role="alert">{accountFormError}</p>}
                 <label>
                   Email
                   <input
@@ -673,7 +679,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         </div>
       )}
       {accountNotice && (
-        <div className="account-toast" role="status" aria-live="polite">
+        <div
+          className={accountNotice.tone === "error" ? "account-toast account-toast-error" : "account-toast"}
+          role={accountNotice.tone === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
           <div>
             <strong>{accountNotice.message}</strong>
             {accountNotice.detail && <span>{accountNotice.detail}</span>}
