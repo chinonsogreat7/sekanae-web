@@ -7,6 +7,10 @@ export type CustomerProfile = {
   email: string;
   name?: string;
   phone?: string;
+  hasAccount: boolean;
+  accountCreatedAt?: string;
+  accountUpdatedAt?: string;
+  activeSessionCount: number;
   newsletterStatus?: "subscribed" | "unsubscribed";
   newsletterSource?: string;
   orderCount: number;
@@ -21,6 +25,10 @@ type CustomerRow = {
   email: string;
   name: string | null;
   phone: string | null;
+  has_account: boolean;
+  account_created_at: Date | null;
+  account_updated_at: Date | null;
+  active_session_count: string;
   newsletter_status: "subscribed" | "unsubscribed" | null;
   newsletter_source: string | null;
   order_count: string;
@@ -47,6 +55,10 @@ function mapCustomer(row: CustomerRow): CustomerProfile {
     email: row.email,
     name: row.name ?? undefined,
     phone: row.phone ?? undefined,
+    hasAccount: row.has_account,
+    accountCreatedAt: row.account_created_at?.toISOString(),
+    accountUpdatedAt: row.account_updated_at?.toISOString(),
+    activeSessionCount: Number(row.active_session_count ?? 0),
     newsletterStatus: row.newsletter_status ?? undefined,
     newsletterSource: row.newsletter_source ?? undefined,
     orderCount,
@@ -92,6 +104,23 @@ export async function listCustomersFromDatabase(filters: CustomerListFilters): P
       from orders
       group by lower(customer_email)
     ),
+    account_customers as (
+      select
+        lower(email) as email,
+        concat_ws(' ', nullif(first_name, ''), nullif(last_name, '')) as name,
+        created_at as account_created_at,
+        updated_at as account_updated_at
+      from customer_profiles
+    ),
+    active_sessions as (
+      select
+        lower(email) as email,
+        count(*)::text as active_session_count
+      from customer_sessions
+      where revoked_at is null
+        and expires_at > now()
+      group by lower(email)
+    ),
     newsletter_customers as (
       select
         lower(email) as email,
@@ -106,20 +135,34 @@ export async function listCustomersFromDatabase(filters: CustomerListFilters): P
         created_at as first_seen_at
       from newsletter_subscribers
     ),
+    customer_emails as (
+      select email from order_customers
+      union
+      select email from account_customers
+      union
+      select email from newsletter_customers
+    ),
     merged_customers as (
       select
-        coalesce(o.email, n.email) as email,
-        coalesce(o.name, n.name) as name,
+        e.email,
+        coalesce(nullif(a.name, ''), o.name, n.name) as name,
         o.phone,
+        (a.email is not null) as has_account,
+        a.account_created_at,
+        a.account_updated_at,
+        coalesce(s.active_session_count, '0') as active_session_count,
         n.newsletter_status,
         n.newsletter_source,
-        coalesce(o.order_count, n.order_count) as order_count,
-        coalesce(o.total_spend_cents, n.total_spend_cents) as total_spend_cents,
+        coalesce(o.order_count, n.order_count, '0') as order_count,
+        coalesce(o.total_spend_cents, n.total_spend_cents, '0') as total_spend_cents,
         o.currency,
         o.last_order_at,
-        coalesce(o.first_seen_at, n.first_seen_at) as first_seen_at
-      from order_customers o
-      full outer join newsletter_customers n on n.email = o.email
+        coalesce(o.first_seen_at, a.account_created_at, n.first_seen_at) as first_seen_at
+      from customer_emails e
+      left join order_customers o on o.email = e.email
+      left join account_customers a on a.email = e.email
+      left join active_sessions s on s.email = e.email
+      left join newsletter_customers n on n.email = e.email
     )
     select *
     from merged_customers

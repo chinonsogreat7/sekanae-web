@@ -25,6 +25,8 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance) {
         with customer_emails as (
           select lower(customer_email) as email from orders
           union
+          select lower(email) as email from customer_profiles
+          union
           select lower(email) as email from newsletter_subscribers
         )
         select

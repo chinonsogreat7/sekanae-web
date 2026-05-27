@@ -1,5 +1,7 @@
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
   BarChart3,
   Bold,
   Boxes,
@@ -24,10 +26,12 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Star,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
-import { type ChangeEvent, type ClipboardEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type ClipboardEvent, type DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getProducts } from "../api/client";
 import { getApiBaseUrl } from "../api/config";
@@ -43,6 +47,9 @@ const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled"
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
 const conciergeStatuses = ["open", "in_progress", "resolved", "closed"] as const;
 const replyStatuses = ["not_replied", "reply_needed", "replied"] as const;
+const contentTypes = ["journal", "newsletter", "homepage", "social", "product_story"] as const;
+const contentChannels = ["website", "email", "homepage", "instagram"] as const;
+const contentStatuses = ["idea", "drafting", "ready", "scheduled", "published"] as const;
 const currencyOptions: CurrencyCode[] = ["USD", "GBP", "EUR", "NGN", "AED"];
 
 type NewsletterStats = {
@@ -148,6 +155,10 @@ type CustomerProfile = {
   email: string;
   name?: string;
   phone?: string;
+  hasAccount: boolean;
+  accountCreatedAt?: string;
+  accountUpdatedAt?: string;
+  activeSessionCount: number;
   newsletterStatus?: "subscribed" | "unsubscribed";
   newsletterSource?: string;
   orderCount: number;
@@ -204,6 +215,9 @@ type CategoryDraft = {
 
 type ConciergeStatus = typeof conciergeStatuses[number];
 type ReplyStatus = typeof replyStatuses[number];
+type ContentType = typeof contentTypes[number];
+type ContentChannel = typeof contentChannels[number];
+type ContentStatus = typeof contentStatuses[number];
 
 type ConciergeRequest = {
   id: string;
@@ -218,6 +232,34 @@ type ConciergeRequest = {
   adminNotes?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+type ContentItem = {
+  id: string;
+  title: string;
+  contentType: ContentType;
+  channel: ContentChannel;
+  status: ContentStatus | "archived";
+  publishAt?: string;
+  owner?: string;
+  brief?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ContentDraft = {
+  id: string;
+  title: string;
+  contentType: ContentType;
+  channel: ContentChannel;
+  status: ContentStatus;
+  publishAt: string;
+  owner: string;
+  brief: string;
+  ctaLabel: string;
+  ctaUrl: string;
 };
 
 type StoreSettings = {
@@ -328,6 +370,17 @@ function colorSwatchClass(color: string) {
   return color.startsWith("#") ? "swatch" : `swatch swatch-${color.toLowerCase().replaceAll(" ", "-")}`;
 }
 
+function labelize(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function toDateTimeInputValue(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 16);
+}
+
 function createProductDraft(): ProductDraft {
   return {
     id: "",
@@ -371,6 +424,36 @@ function createCategoryDraft(): CategoryDraft {
     name: "",
     image: "",
     sortOrder: "0",
+  };
+}
+
+function createContentDraft(): ContentDraft {
+  return {
+    id: "",
+    title: "",
+    contentType: "journal",
+    channel: "website",
+    status: "idea",
+    publishAt: "",
+    owner: "",
+    brief: "",
+    ctaLabel: "",
+    ctaUrl: "",
+  };
+}
+
+function contentToDraft(item: ContentItem): ContentDraft {
+  return {
+    id: item.id,
+    title: item.title,
+    contentType: item.contentType,
+    channel: item.channel,
+    status: item.status === "archived" ? "idea" : item.status,
+    publishAt: toDateTimeInputValue(item.publishAt),
+    owner: item.owner ?? "",
+    brief: item.brief ?? "",
+    ctaLabel: item.ctaLabel ?? "",
+    ctaUrl: item.ctaUrl ?? "",
   };
 }
 
@@ -484,8 +567,8 @@ function getPageTitle(routePath: string) {
   if (routePath.startsWith("products/") && routePath.endsWith("/edit")) return "Edit Product";
   if (routePath.startsWith("products/")) return "Product Detail";
   if (routePath === "orders") return "Orders";
-  if (routePath === "customers") return "Customers";
-  if (routePath.startsWith("customers/")) return "Customer Detail";
+  if (routePath === "customers") return "Users";
+  if (routePath.startsWith("customers/")) return "User Detail";
   if (routePath === "collections") return "Collections";
   if (routePath === "concierge") return "Concierge";
   if (routePath === "newsletter") return "Newsletter";
@@ -525,11 +608,15 @@ export function AdminPage() {
   const newsletterEditorRef = useRef<HTMLDivElement | null>(null);
   const collectionFormRef = useRef<HTMLFormElement | null>(null);
   const categoryFormRef = useRef<HTMLFormElement | null>(null);
+  const contentFormRef = useRef<HTMLFormElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [showProductImageUrlEditor, setShowProductImageUrlEditor] = useState(false);
+  const [productImageUrlDraft, setProductImageUrlDraft] = useState("");
+  const [productImageError, setProductImageError] = useState<string | null>(null);
   const [customProductTag, setCustomProductTag] = useState("");
   const [customProductTagError, setCustomProductTagError] = useState<string | null>(null);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
@@ -563,6 +650,11 @@ export function AdminPage() {
   const [conciergeRequests, setConciergeRequests] = useState<ConciergeRequest[]>([]);
   const [conciergeFilter, setConciergeFilter] = useState<"" | ConciergeStatus>("");
   const [conciergeMessage, setConciergeMessage] = useState<string | null>(null);
+  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [contentTotal, setContentTotal] = useState(0);
+  const [contentFilter, setContentFilter] = useState<"" | ContentStatus>("");
+  const [contentDraft, setContentDraft] = useState<ContentDraft>(() => createContentDraft());
+  const [contentMessage, setContentMessage] = useState<string | null>(null);
   const [settingsDraft, setSettingsDraft] = useState<StoreSettings | null>(null);
   const [settingsHealth, setSettingsHealth] = useState<SettingsHealth | null>(null);
   const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
@@ -649,6 +741,7 @@ export function AdminPage() {
     void readCollections();
     void readCategories();
     void readConcierge();
+    void readContent();
     void readSettings();
     void readAudit();
     void readNewsletterStats();
@@ -678,6 +771,9 @@ export function AdminPage() {
     if (routePath === "products/new") {
       setProductDraft(createProductDraft());
       setProductMessage(null);
+      setProductImageUrlDraft("");
+      setProductImageError(null);
+      setShowProductImageUrlEditor(false);
       setCustomProductTag("");
       setCustomProductTagError(null);
       return;
@@ -686,6 +782,9 @@ export function AdminPage() {
     if (routePath.startsWith("products/") && routePath.endsWith("/edit") && selectedProduct) {
       setProductDraft(productToDraft(selectedProduct));
       setProductMessage(null);
+      setProductImageUrlDraft("");
+      setProductImageError(null);
+      setShowProductImageUrlEditor(false);
       setCustomProductTag("");
       setCustomProductTagError(null);
     }
@@ -761,6 +860,9 @@ export function AdminPage() {
     setCampaignResult(null);
     setSelectedOrder(null);
     setDashboardData(null);
+    setContentItems([]);
+    setContentDraft(createContentDraft());
+    setContentTotal(0);
     setSettingsDraft(null);
     setSettingsHealth(null);
     setAuditLogs([]);
@@ -1058,6 +1160,66 @@ export function AdminPage() {
     setCustomProductTagError(null);
   }
 
+  function setProductImages(images: string[]) {
+    setProductDraft((current) => ({ ...current, images: images.join("\n") }));
+  }
+
+  function removeProductImage(index: number) {
+    const images = parseList(productDraft.images).filter((_, imageIndex) => imageIndex !== index);
+    setProductImages(images);
+    setProductImageError(null);
+  }
+
+  function makePrimaryProductImage(index: number) {
+    const images = parseList(productDraft.images);
+    const [image] = images.splice(index, 1);
+
+    if (!image) return;
+
+    setProductImages([image, ...images]);
+    setProductImageError(null);
+  }
+
+  function moveProductImage(index: number, direction: -1 | 1) {
+    const images = parseList(productDraft.images);
+    const nextIndex = index + direction;
+
+    if (nextIndex < 0 || nextIndex >= images.length) return;
+
+    [images[index], images[nextIndex]] = [images[nextIndex], images[index]];
+    setProductImages(images);
+    setProductImageError(null);
+  }
+
+  function addProductImageUrls() {
+    const existingImages = parseList(productDraft.images);
+    const nextUrls = parseList(productImageUrlDraft);
+    const invalidUrl = nextUrls.find((url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol !== "https:" && parsed.protocol !== "http:";
+      } catch {
+        return true;
+      }
+    });
+
+    if (!nextUrls.length) {
+      setProductImageError("Paste at least one image URL.");
+      return;
+    }
+
+    if (invalidUrl) {
+      setProductImageError(`This does not look like a valid image URL: ${invalidUrl}`);
+      return;
+    }
+
+    const images = [...new Set([...existingImages, ...nextUrls])];
+    setProductImages(images);
+    setProductImageUrlDraft("");
+    setProductImageError(null);
+    setProductMessage(`${nextUrls.length} image URL${nextUrls.length === 1 ? "" : "s"} added.`);
+  }
+
   async function uploadAdminImages(files: File[]) {
     if (!adminToken) {
       throw new Error("Sign in again to upload images.");
@@ -1096,15 +1258,27 @@ export function AdminPage() {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
 
+    await uploadProductImageFiles(files);
+  }
+
+  async function uploadProductImageFiles(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
     if (!files.length) {
+      return;
+    }
+
+    if (imageFiles.length !== files.length) {
+      setProductImageError("Only image files can be uploaded.");
       return;
     }
 
     setIsUploadingImages(true);
     setProductMessage(null);
+    setProductImageError(null);
 
     try {
-      const uploadedUrls = await uploadAdminImages(files);
+      const uploadedUrls = await uploadAdminImages(imageFiles);
 
       setProductDraft((current) => ({
         ...current,
@@ -1112,10 +1286,20 @@ export function AdminPage() {
       }));
       setProductMessage(`${uploadedUrls.length} image${uploadedUrls.length === 1 ? "" : "s"} uploaded.`);
     } catch (error) {
-      setProductMessage(error instanceof Error ? error.message : "Image upload failed.");
+      setProductImageError(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
       setIsUploadingImages(false);
     }
+  }
+
+  function dropProductImages(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    if (isUploadingImages) {
+      return;
+    }
+
+    void uploadProductImageFiles(Array.from(event.dataTransfer.files));
   }
 
   async function uploadCollectionImage(event: ChangeEvent<HTMLInputElement>) {
@@ -1436,6 +1620,93 @@ export function AdminPage() {
     }
   }
 
+  async function readContent() {
+    if (!adminToken) {
+      return;
+    }
+
+    const query = new URLSearchParams({ limit: "80" });
+
+    if (contentFilter) {
+      query.set("status", contentFilter);
+    }
+
+    try {
+      const payload = await readAdmin<ContentItem[]>(`/api/admin/content?${query.toString()}`);
+      setContentItems(payload.data);
+      setContentTotal(payload.meta?.total ?? payload.data.length);
+      setContentMessage(payload.data.length ? null : "No content items match this view yet.");
+    } catch (error) {
+      setContentItems([]);
+      setContentTotal(0);
+      setContentMessage(error instanceof Error ? error.message : "Content planner is unavailable.");
+    }
+  }
+
+  async function saveContent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setContentMessage(null);
+
+    try {
+      const payload = await readAdmin<ContentItem>("/api/admin/content", {
+        method: "POST",
+        body: JSON.stringify({
+          id: contentDraft.id || undefined,
+          title: contentDraft.title.trim(),
+          contentType: contentDraft.contentType,
+          channel: contentDraft.channel,
+          status: contentDraft.status,
+          publishAt: contentDraft.publishAt ? new Date(contentDraft.publishAt).toISOString() : undefined,
+          owner: contentDraft.owner.trim() || undefined,
+          brief: contentDraft.brief.trim() || undefined,
+          ctaLabel: contentDraft.ctaLabel.trim() || undefined,
+          ctaUrl: contentDraft.ctaUrl.trim() || undefined,
+        }),
+      });
+
+      setContentDraft(contentToDraft(payload.data));
+      setContentMessage(`${payload.data.title} has been saved.`);
+      await readContent();
+      await readAudit();
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Content save failed.");
+    }
+  }
+
+  function editContent(item: ContentItem) {
+    setContentDraft(contentToDraft(item));
+    setContentMessage(`Editing ${item.title}.`);
+    contentFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function updateContentItem(itemId: string, patch: Partial<Pick<ContentItem, "status">>) {
+    try {
+      await readAdmin<ContentItem>(`/api/admin/content/${encodeURIComponent(itemId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setContentMessage("Content item updated.");
+      await readContent();
+      await readAudit();
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Content update failed.");
+    }
+  }
+
+  async function archiveContentItem(itemId: string) {
+    try {
+      await readAdmin<{ archived: boolean }>(`/api/admin/content/${encodeURIComponent(itemId)}`, {
+        method: "DELETE",
+      });
+      setContentDraft((current) => current.id === itemId ? createContentDraft() : current);
+      setContentMessage("Content item archived.");
+      await readContent();
+      await readAudit();
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Content archive failed.");
+    }
+  }
+
   async function readSettings() {
     if (!adminToken) {
       return;
@@ -1547,7 +1818,7 @@ export function AdminPage() {
         note: "All-time order count",
       },
       {
-        label: "Customers",
+        label: "Users",
         value: String(metrics?.customers ?? "-"),
         note: "Orders plus newsletter",
       },
@@ -1626,7 +1897,7 @@ export function AdminPage() {
             <div className="admin-ops-grid">
               <Link to={`${adminBase}/collections`}><Layers3 size={18} /> Collections</Link>
               <Link to={`${adminBase}/concierge`}><LifeBuoy size={18} /> Concierge</Link>
-              <Link to={`${adminBase}/customers`}><Users size={18} /> Customers</Link>
+              <Link to={`${adminBase}/customers`}><Users size={18} /> Users</Link>
               <Link to={`${adminBase}/settings`}><ShieldCheck size={18} /> Settings</Link>
             </div>
           </article>
@@ -1837,34 +2108,83 @@ export function AdminPage() {
           <section className="admin-form-section">
             <div>
               <h3>Media</h3>
-              <p>Upload product photos. The first image becomes the main storefront image.</p>
+              <p>Upload and arrange product photos. The primary image appears first across the storefront.</p>
             </div>
             <div className="admin-form-stack">
-              <div className="admin-media-upload">
-                <label className="admin-upload-button">
-                  {isUploadingImages ? "Uploading images" : "Upload images"}
-                  <input type="file" accept="image/*" multiple onChange={uploadProductImages} disabled={isUploadingImages} />
-                </label>
-                <span>{parseList(productDraft.images).length} image{parseList(productDraft.images).length === 1 ? "" : "s"} selected</span>
-              </div>
-              {parseList(productDraft.images).length > 0 && (
-                <div className="admin-image-preview-grid">
-                  {parseList(productDraft.images).map((image, index) => (
-                    <figure key={`${image}-${index}`}>
-                      <img src={image} alt="" />
-                      <button
-                        type="button"
-                        onClick={() => setProductDraft((current) => ({
-                          ...current,
-                          images: parseList(current.images).filter((_, imageIndex) => imageIndex !== index).join("\n"),
-                        }))}
-                      >
-                        Remove
-                      </button>
-                    </figure>
-                  ))}
+              <div
+                className="admin-media-manager"
+                onDrop={dropProductImages}
+                onDragOver={(event) => event.preventDefault()}
+              >
+                <div className="admin-media-dropzone">
+                  <div>
+                    <strong>{isUploadingImages ? "Uploading product photos" : "Drop product photos here"}</strong>
+                    <span>{parseList(productDraft.images).length} image{parseList(productDraft.images).length === 1 ? "" : "s"} selected. Use the first image as the storefront cover.</span>
+                  </div>
+                  <label className="admin-upload-button">
+                    <Upload size={15} aria-hidden="true" />
+                    {isUploadingImages ? "Uploading" : "Choose files"}
+                    <input type="file" accept="image/*" multiple onChange={uploadProductImages} disabled={isUploadingImages} />
+                  </label>
                 </div>
-              )}
+
+                {productImageError && <p className="admin-inline-error" role="alert">{productImageError}</p>}
+
+                {parseList(productDraft.images).length > 0 ? (
+                  <div className="admin-image-preview-grid admin-product-media-grid">
+                    {parseList(productDraft.images).map((image, index) => (
+                      <figure key={`${image}-${index}`}>
+                        <div className="admin-media-frame">
+                          <img src={image} alt="" />
+                          {index === 0 && <span className="admin-primary-badge"><Star size={13} /> Primary</span>}
+                        </div>
+                        <figcaption>
+                          <span>Image {index + 1}</span>
+                          <div className="admin-media-actions">
+                            {index !== 0 && (
+                              <button type="button" onClick={() => makePrimaryProductImage(index)}>
+                                <Star size={13} /> Primary
+                              </button>
+                            )}
+                            <button type="button" onClick={() => moveProductImage(index, -1)} disabled={index === 0} aria-label={`Move image ${index + 1} up`}>
+                              <ArrowUp size={13} />
+                            </button>
+                            <button type="button" onClick={() => moveProductImage(index, 1)} disabled={index === parseList(productDraft.images).length - 1} aria-label={`Move image ${index + 1} down`}>
+                              <ArrowDown size={13} />
+                            </button>
+                            <button type="button" onClick={() => removeProductImage(index)}>
+                              <Trash2 size={13} /> Remove
+                            </button>
+                          </div>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="admin-media-empty">
+                    <PackagePlus size={20} aria-hidden="true" />
+                    <span>No product photos yet.</span>
+                  </div>
+                )}
+
+                <button className="admin-secondary-action" type="button" onClick={() => setShowProductImageUrlEditor((current) => !current)}>
+                  <Link2 size={14} aria-hidden="true" />
+                  {showProductImageUrlEditor ? "Hide URL fallback" : "Paste image URLs instead"}
+                </button>
+                {showProductImageUrlEditor && (
+                  <div className="admin-image-url-editor">
+                    <textarea
+                      value={productImageUrlDraft}
+                      onChange={(event) => {
+                        setProductImageUrlDraft(event.target.value);
+                        setProductImageError(null);
+                      }}
+                      placeholder="Paste one image URL per line"
+                    />
+                    <button type="button" onClick={addProductImageUrls}>Add image URLs</button>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
 
@@ -2091,9 +2411,9 @@ export function AdminPage() {
       <section className="admin-panel admin-panel-wide">
         <div className="panel-heading">
           <div>
-            <h2>Customers</h2>
+            <h2>Users</h2>
             <p className="admin-status admin-status-tight">
-              Showing {customers.length} of {customersTotal} customer records
+              Showing {customers.length} of {customersTotal} user records
             </p>
           </div>
         </div>
@@ -2114,7 +2434,7 @@ export function AdminPage() {
         </form>
         <div className="admin-table admin-customer-table">
           <div className="admin-table-head">
-            <span>Customer</span><span>Orders</span><span>Total Spend</span><span>Status</span><span>Actions</span>
+            <span>User</span><span>Account</span><span>Orders</span><span>Total Spend</span><span>Newsletter</span><span>Actions</span>
           </div>
           {customers.map((customer) => (
             <div className="admin-row" key={customer.email}>
@@ -2125,6 +2445,10 @@ export function AdminPage() {
                   <small>{customer.email}</small>
                 </span>
               </Link>
+              <span>
+                <strong>{customer.hasAccount ? "Registered" : "Guest"}</strong>
+                <small>{customer.accountCreatedAt ? formatDate(customer.accountCreatedAt) : "No account"}</small>
+              </span>
               <span>{customer.orderCount}</span>
               <span>{customer.currency ? formatCurrencyAmount(customer.totalSpend, customer.currency) : "-"}</span>
               <span>{customer.newsletterStatus ?? "No newsletter"}</span>
@@ -2180,6 +2504,9 @@ export function AdminPage() {
             <Link className="admin-button-link" to={`${adminBase}/customers`}>Back to customers</Link>
           </div>
           <div className="admin-product-facts">
+            <span><strong>Account</strong>{selectedCustomer.hasAccount ? "Registered" : "Guest / contact"}</span>
+            <span><strong>Account created</strong>{selectedCustomer.accountCreatedAt ? formatDate(selectedCustomer.accountCreatedAt) : "-"}</span>
+            <span><strong>Active sessions</strong>{selectedCustomer.activeSessionCount}</span>
             <span><strong>Orders</strong>{selectedCustomer.orderCount}</span>
             <span><strong>Total spend</strong>{selectedCustomer.currency ? formatCurrencyAmount(selectedCustomer.totalSpend, selectedCustomer.currency) : "-"}</span>
             <span><strong>Newsletter</strong>{selectedCustomer.newsletterStatus ?? "No newsletter"}</span>
@@ -2794,7 +3121,7 @@ export function AdminPage() {
         <div className="panel-heading">
           <div>
             <h2>Audit Log</h2>
-            <p className="admin-status admin-status-tight">Product, order, collection, concierge, settings, and password changes.</p>
+            <p className="admin-status admin-status-tight">Product, order, collection, content, concierge, settings, and password changes.</p>
           </div>
           <button type="button" onClick={readAudit}>Refresh</button>
         </div>
@@ -2804,15 +3131,172 @@ export function AdminPage() {
   }
 
   function renderContent() {
+    const contentMetrics = [
+      { label: "Planned", value: contentTotal, note: "Active content items" },
+      { label: "Drafting", value: contentItems.filter((item) => item.status === "drafting").length, note: "Needs copy or assets" },
+      { label: "Ready", value: contentItems.filter((item) => item.status === "ready").length, note: "Prepared for publishing" },
+      { label: "Scheduled", value: contentItems.filter((item) => item.status === "scheduled").length, note: "Has a publish window" },
+    ];
+
     return (
-      <section className="admin-grid">
-        <article className="admin-panel">
-          <h2>Content Calendar</h2>
-          <div className="content-tasks">
-            <label><input type="checkbox" defaultChecked /> Publish Travel Edit journal story</label>
-            <label><input type="checkbox" /> Prepare Bridal Atelier waitlist email</label>
-            <label><input type="checkbox" /> Update gift packaging photography</label>
+      <section className="admin-grid admin-grid-wide">
+        <article className="admin-panel admin-panel-wide">
+          <div className="panel-heading">
+            <div>
+              <h2>Content Planner</h2>
+              <p className="admin-status admin-status-tight">Plan journal stories, homepage updates, newsletters, and social campaigns.</p>
+            </div>
+            <button type="button" onClick={readContent}>Refresh</button>
           </div>
+          <section className="admin-metrics content-metrics">
+            {contentMetrics.map((metric) => (
+              <article key={metric.label}>
+                <p>{metric.label}</p>
+                <strong>{metric.value}</strong>
+                <span>{metric.note}</span>
+              </article>
+            ))}
+          </section>
+          <form className="admin-filters" onSubmit={(event) => { event.preventDefault(); void readContent(); }}>
+            <CustomSelect
+              label="Status"
+              className="admin-custom-select"
+              value={contentFilter}
+              onChange={(value) => setContentFilter(value as "" | ContentStatus)}
+              options={[
+                { label: "All", value: "" },
+                ...contentStatuses.map((status) => ({ label: labelize(status), value: status })),
+              ]}
+            />
+            <button type="submit">Apply</button>
+          </form>
+          <div className="content-board">
+            {contentItems.map((item) => (
+              <article className="content-card" key={item.id}>
+                <div className="content-card-main">
+                  <span className="content-eyebrow">{labelize(item.contentType)} / {labelize(item.channel)}</span>
+                  <h3>{item.title}</h3>
+                  <p>{item.brief || "No brief added yet."}</p>
+                  <div className="content-meta">
+                    <span>{item.publishAt ? formatDate(item.publishAt) : "No publish date"}</span>
+                    <span>{item.owner || "Unassigned"}</span>
+                    {item.ctaLabel && <span>{item.ctaLabel}</span>}
+                  </div>
+                </div>
+                <div className="content-card-actions">
+                  <CustomSelect
+                    label="Status"
+                    className="admin-custom-select content-status-select"
+                    value={item.status === "archived" ? "idea" : item.status}
+                    onChange={(value) => updateContentItem(item.id, { status: value as ContentStatus })}
+                    options={contentStatuses.map((status) => ({ label: labelize(status), value: status }))}
+                  />
+                  <button type="button" onClick={() => editContent(item)}>
+                    <Edit3 size={15} /> Edit
+                  </button>
+                  <button className="admin-danger" type="button" onClick={() => archiveContentItem(item.id)}>
+                    <Trash2 size={15} /> Archive
+                  </button>
+                </div>
+              </article>
+            ))}
+            {!contentItems.length && <p className="admin-empty">{contentMessage ?? "No content items match this view yet."}</p>}
+          </div>
+          {contentMessage && contentItems.length > 0 && <p className="admin-status">{contentMessage}</p>}
+        </article>
+        <article className="admin-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>{contentDraft.id ? "Edit Content" : "New Content"}</h2>
+              <p className="admin-status admin-status-tight">Create the brief before it becomes a newsletter, image request, or journal post.</p>
+            </div>
+          </div>
+          <form className="admin-product-form content-editor-form" ref={contentFormRef} onSubmit={saveContent}>
+            <label>
+              Title
+              <input
+                value={contentDraft.title}
+                onChange={(event) => setContentDraft((current) => ({ ...current, title: event.target.value }))}
+                placeholder="Summer travel edit"
+                required
+              />
+            </label>
+            <div className="admin-form-grid admin-form-grid-compact">
+              <CustomSelect
+                label="Type"
+                className="admin-custom-select"
+                value={contentDraft.contentType}
+                onChange={(value) => setContentDraft((current) => ({ ...current, contentType: value as ContentType }))}
+                options={contentTypes.map((type) => ({ label: labelize(type), value: type }))}
+              />
+              <CustomSelect
+                label="Channel"
+                className="admin-custom-select"
+                value={contentDraft.channel}
+                onChange={(value) => setContentDraft((current) => ({ ...current, channel: value as ContentChannel }))}
+                options={contentChannels.map((channel) => ({ label: labelize(channel), value: channel }))}
+              />
+              <CustomSelect
+                label="Status"
+                className="admin-custom-select"
+                value={contentDraft.status}
+                onChange={(value) => setContentDraft((current) => ({ ...current, status: value as ContentStatus }))}
+                options={contentStatuses.map((status) => ({ label: labelize(status), value: status }))}
+              />
+              <label>
+                Publish date
+                <input
+                  type="datetime-local"
+                  value={contentDraft.publishAt}
+                  onChange={(event) => setContentDraft((current) => ({ ...current, publishAt: event.target.value }))}
+                />
+              </label>
+            </div>
+            <label>
+              Owner
+              <input
+                value={contentDraft.owner}
+                onChange={(event) => setContentDraft((current) => ({ ...current, owner: event.target.value }))}
+                placeholder="Team member or creator"
+              />
+            </label>
+            <label>
+              Brief
+              <textarea
+                value={contentDraft.brief}
+                onChange={(event) => setContentDraft((current) => ({ ...current, brief: event.target.value }))}
+                placeholder="Goal, products to feature, assets needed, and notes for the final copy."
+              />
+            </label>
+            <div className="admin-form-grid admin-form-grid-compact">
+              <label>
+                CTA label
+                <input
+                  value={contentDraft.ctaLabel}
+                  onChange={(event) => setContentDraft((current) => ({ ...current, ctaLabel: event.target.value }))}
+                  placeholder="Shop the edit"
+                />
+              </label>
+              <label>
+                CTA URL
+                <input
+                  type="url"
+                  value={contentDraft.ctaUrl}
+                  onChange={(event) => setContentDraft((current) => ({ ...current, ctaUrl: event.target.value }))}
+                  placeholder="https://sekanae.co/shop"
+                />
+              </label>
+            </div>
+            <div className="admin-form-actions">
+              <button type="submit">{contentDraft.id ? "Save content" : "Create content"}</button>
+              <button type="button" className="admin-secondary-action" onClick={() => {
+                setContentDraft(createContentDraft());
+                setContentMessage(null);
+              }}>
+                Clear
+              </button>
+            </div>
+          </form>
         </article>
       </section>
     );
@@ -2901,7 +3385,7 @@ export function AdminPage() {
         <NavLink to={`${adminBase}/products`}><Boxes size={18} /> Products</NavLink>
         <NavLink to={`${adminBase}/collections`}><Layers3 size={18} /> Collections</NavLink>
         <NavLink to={`${adminBase}/orders`}><ClipboardList size={18} /> Orders</NavLink>
-        <NavLink to={`${adminBase}/customers`}><Users size={18} /> Customers</NavLink>
+        <NavLink to={`${adminBase}/customers`}><Users size={18} /> Users</NavLink>
         <NavLink to={`${adminBase}/concierge`}><LifeBuoy size={18} /> Concierge</NavLink>
         <NavLink to={`${adminBase}/newsletter`}><MailCheck size={18} /> Newsletter</NavLink>
         <NavLink to={`${adminBase}/content`}><Edit3 size={18} /> Content</NavLink>
