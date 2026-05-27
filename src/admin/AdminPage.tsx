@@ -1878,7 +1878,7 @@ export function AdminPage() {
                 Colors
                 <div className="admin-color-editor">
                   {(parseList(productDraft.colors).length ? parseList(productDraft.colors) : ["#000000"]).map((color, index) => (
-                    <div className="admin-color-row" key={`${color}-${index}`}>
+                    <div className="admin-color-row" key={`product-color-${index}`}>
                       <input
                         type="color"
                         value={color.startsWith("#") && color.length === 7 ? color : "#000000"}
