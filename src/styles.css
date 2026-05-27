@@ -395,6 +395,97 @@ button {
   color: var(--gold);
 }
 
+.account-button.is-signed-in {
+  width: auto;
+  min-width: 40px;
+  grid-auto-flow: column;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--gold);
+  border-color: rgba(169, 119, 45, 0.38);
+  background: #fff;
+}
+
+.account-button.is-signed-in span {
+  max-width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.account-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 1250;
+  width: min(282px, calc(100vw - 32px));
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 44px rgba(35, 28, 24, 0.14);
+  animation: modal-rise var(--motion-medium) var(--ease-luxury) both;
+}
+
+.account-menu-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px 10px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.account-menu-summary strong {
+  color: var(--espresso);
+}
+
+.account-menu-summary span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.account-menu a,
+.account-menu button {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--espresso);
+  padding: 0 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.account-menu a:hover,
+.account-menu button:hover {
+  background: var(--pearl);
+  color: var(--gold);
+}
+
+.account-menu .danger-action {
+  color: #9d2424;
+}
+
+.account-menu .danger-action.is-confirming {
+  background: rgba(157, 36, 36, 0.08);
+}
+
 .count-button {
   position: relative;
 }
@@ -540,6 +631,21 @@ button {
   font-size: 0.76rem;
   letter-spacing: 0.09em;
   text-transform: uppercase;
+}
+
+.drawer-account-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.drawer-account-note strong {
+  color: var(--espresso);
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .hero-section {
@@ -1250,9 +1356,144 @@ p {
   padding: 0 12px;
 }
 
+.account-gate-panel input[aria-invalid="true"] {
+  border-color: #9d2424;
+}
+
+.form-error {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(157, 36, 36, 0.28);
+  border-radius: 6px;
+  background: rgba(157, 36, 36, 0.06);
+  color: #9d2424;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.form-help {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(169, 119, 45, 0.28);
+  border-radius: 6px;
+  background: rgba(169, 119, 45, 0.08);
+  color: var(--espresso);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  min-height: 34px;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.text-button:hover {
+  color: var(--espresso);
+}
+
+.text-button:disabled,
+.account-gate-panel .primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .account-gate-panel .primary-button {
   width: 100%;
   margin-top: 6px;
+}
+
+.account-profile-panel {
+  width: min(560px, 100%);
+}
+
+.profile-details {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0;
+}
+
+.profile-details div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-details dt {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-details dd {
+  margin: 0;
+  color: var(--espresso);
+  overflow-wrap: anywhere;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.profile-actions .primary-button,
+.profile-actions .secondary-button {
+  flex: 1;
+  justify-content: center;
+}
+
+.account-toast {
+  position: fixed;
+  right: clamp(16px, 4vw, 34px);
+  bottom: clamp(16px, 4vw, 34px);
+  z-index: 1300;
+  width: min(390px, calc(100vw - 32px));
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  background: var(--black);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 20px 54px rgba(35, 28, 24, 0.24);
+  animation: modal-rise var(--motion-medium) var(--ease-luxury) both;
+}
+
+.account-toast div {
+  display: grid;
+  gap: 5px;
+}
+
+.account-toast strong {
+  color: #fff;
+}
+
+.account-toast span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.account-toast button {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
 }
 
 .modal-close {
@@ -1682,6 +1923,51 @@ p {
   margin: 18px 0 28px;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.checkout-account-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border: 1px solid rgba(169, 119, 45, 0.26);
+  border-radius: 6px;
+  background: linear-gradient(135deg, rgba(169, 119, 45, 0.08), rgba(255, 255, 255, 0.76));
+}
+
+.checkout-account-status div {
+  display: grid;
+  gap: 4px;
+}
+
+.checkout-account-status strong {
+  color: var(--espresso);
+}
+
+.checkout-account-status span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.checkout-account-status button {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--espresso);
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.checkout-account-status button:hover {
+  color: var(--gold);
+  border-color: rgba(169, 119, 45, 0.48);
 }
 
 .form-grid {
@@ -3363,7 +3649,7 @@ p {
   }
 
   .admin-entry,
-  .nav-actions .icon-button:first-child {
+  .nav-actions > .icon-button:first-child {
     display: none;
   }
 
@@ -3377,6 +3663,16 @@ p {
   .icon-button {
     width: 36px;
     height: 36px;
+  }
+
+  .account-button.is-signed-in {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+  }
+
+  .account-button.is-signed-in span {
+    display: none;
   }
 
   .menu-button.icon-button {
@@ -3446,6 +3742,15 @@ p {
 
   .shop-layout .product-grid {
     grid-template-columns: 1fr;
+  }
+
+  .checkout-account-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .checkout-account-status button {
+    width: 100%;
   }
 
   .not-found-page {

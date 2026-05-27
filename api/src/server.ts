@@ -18,6 +18,7 @@ import { registerAdminSettingsRoutes } from "./routes/admin-settings.js";
 import { registerCartRoutes } from "./routes/cart.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerConciergeRoutes } from "./routes/concierge.js";
+import { registerCustomerAuthRoutes } from "./routes/customer-auth.js";
 import { registerNewsletterRoutes } from "./routes/newsletter.js";
 import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
@@ -69,6 +70,7 @@ export async function buildServer() {
         { name: "Payments", description: "Stripe checkout and payment webhook workflows" },
         { name: "Newsletter", description: "Newsletter subscription and unsubscribe workflows" },
         { name: "Client Care", description: "Concierge and client support workflows" },
+        { name: "Customer Auth", description: "Passwordless customer sign-in workflows" },
         { name: "Admin", description: "Protected catalog and inventory management workflows" },
       ],
       components: {
@@ -125,6 +127,7 @@ export async function buildServer() {
   await app.register(registerOrderRoutes, { prefix: "/api" });
   await app.register(registerNewsletterRoutes, { prefix: "/api" });
   await app.register(registerConciergeRoutes, { prefix: "/api" });
+  await app.register(registerCustomerAuthRoutes, { prefix: "/api" });
   await app.register(registerPaymentRoutes, { prefix: "/api" });
   await app.register(registerStripeWebhookRoutes, { prefix: "/api" });
   await app.register(registerAdminAuthRoutes, { prefix: "/api" });

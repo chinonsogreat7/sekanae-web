@@ -131,6 +131,18 @@ export function CheckoutPage() {
             </div>
           ) : (
           <form onSubmit={handleCheckoutSubmit}>
+            <div className="checkout-account-status" role="status">
+              <div>
+                <strong>Signed in as {customerAccount.firstName} {customerAccount.lastName}</strong>
+                <span>{customerAccount.email}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => openAccountPrompt("Sign in with another email verification code.", "sign-in")}
+              >
+                Switch account
+              </button>
+            </div>
             <div className="form-grid">
               <label>Email<input type="email" name="email" required placeholder="you@example.com" defaultValue={customerAccount.email} autoComplete="email" /></label>
               <CustomSelect

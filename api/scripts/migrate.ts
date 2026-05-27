@@ -12,6 +12,7 @@ const migrationFiles = [
   "007_admin_operations.sql",
   "008_product_tags.sql",
   "009_product_categories.sql",
+  "010_customer_auth.sql",
 ];
 
 async function migrate() {

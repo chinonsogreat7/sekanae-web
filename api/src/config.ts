@@ -18,6 +18,8 @@ const envSchema = z.object({
   ADMIN_PASSWORD_HASH: z.string().min(1).optional(),
   ADMIN_PASSWORD: z.string().min(12).optional(),
   ADMIN_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 8),
+  CUSTOMER_LOGIN_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(10 * 60),
+  CUSTOMER_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
   STRIPE_SECRET_KEY: z.string().min(1).optional(),
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
   STRIPE_SUCCESS_URL: z.string().url().default("http://localhost:5174/checkout/success?session_id={CHECKOUT_SESSION_ID}"),

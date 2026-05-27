@@ -1,5 +1,5 @@
 import { ChevronDown, Heart, Menu, Search, ShoppingBag, User, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { currencies, type CurrencyCode } from "../data/catalog";
 import { useStore } from "../context/StoreContext";
@@ -14,8 +14,36 @@ const navItems = [
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isCurrencyOpen, setIsCurrencyOpen] = useState(false);
-  const { currency, setCurrency, cartCount, wishlist, customerAccount, openAccountPrompt, signOutCustomer } = useStore();
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isConfirmingSignOut, setIsConfirmingSignOut] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const {
+    currency,
+    setCurrency,
+    cartCount,
+    wishlist,
+    customerAccount,
+    openAccountPrompt,
+    openCustomerProfile,
+    signOutCustomer,
+  } = useStore();
   const location = useLocation();
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) {
+      return undefined;
+    }
+
+    function closeAccountMenu(event: PointerEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false);
+        setIsConfirmingSignOut(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", closeAccountMenu);
+    return () => document.removeEventListener("pointerdown", closeAccountMenu);
+  }, [isAccountMenuOpen]);
 
   function isActiveNavItem(path: string) {
     const [targetPath, targetSearch] = path.split("?");
@@ -121,22 +149,91 @@ export function Header() {
               <ShoppingBag size={18} />
               <span>{cartCount}</span>
             </Link>
-            <button
-              className="icon-button account-button"
-              type="button"
-              aria-label={customerAccount ? "Sign out of account" : "Create account"}
-              title={customerAccount ? `Signed in as ${customerAccount.email}` : "Create account"}
-              onClick={() => {
-                if (customerAccount) {
-                  signOutCustomer();
-                  return;
-                }
+            <div className="account-menu-wrap" ref={accountMenuRef}>
+              <button
+                className={customerAccount ? "icon-button account-button is-signed-in" : "icon-button account-button"}
+                type="button"
+                aria-label="Account menu"
+                aria-expanded={isAccountMenuOpen}
+                aria-haspopup="menu"
+                title={customerAccount ? `Signed in as ${customerAccount.email}` : "Account"}
+                onClick={() => {
+                  setIsAccountMenuOpen((open) => !open);
+                  setIsConfirmingSignOut(false);
+                }}
+              >
+                <User size={18} />
+                {customerAccount && <span>{customerAccount.firstName}</span>}
+              </button>
+              {isAccountMenuOpen && (
+                <div className="account-menu" role="menu">
+                  {customerAccount ? (
+                    <>
+                      <div className="account-menu-summary">
+                        <strong>{customerAccount.firstName} {customerAccount.lastName}</strong>
+                        <span>{customerAccount.email}</span>
+                      </div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          openCustomerProfile();
+                          setIsAccountMenuOpen(false);
+                        }}
+                      >
+                        View profile
+                      </button>
+                      <Link role="menuitem" to="/checkout" onClick={() => setIsAccountMenuOpen(false)}>
+                        Checkout
+                      </Link>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className={isConfirmingSignOut ? "danger-action is-confirming" : "danger-action"}
+                        onClick={() => {
+                          if (!isConfirmingSignOut) {
+                            setIsConfirmingSignOut(true);
+                            return;
+                          }
 
-                openAccountPrompt("Create an account to save your wishlist and continue checkout.");
-              }}
-            >
-              <User size={18} />
-            </button>
+                          signOutCustomer();
+                          setIsAccountMenuOpen(false);
+                        }}
+                      >
+                        {isConfirmingSignOut ? "Confirm sign out" : "Sign out"}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="account-menu-summary">
+                        <strong>SEKANAE account</strong>
+                        <span>Sign in or create a profile.</span>
+                      </div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          openAccountPrompt("Sign in with an email verification code.", "sign-in");
+                          setIsAccountMenuOpen(false);
+                        }}
+                      >
+                        Sign in
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          openAccountPrompt("Create an account to save your wishlist and continue checkout.", "create");
+                          setIsAccountMenuOpen(false);
+                        }}
+                      >
+                        Create account
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </nav>
       </header>
@@ -178,14 +275,30 @@ export function Header() {
                 onClick={() => {
                   setIsOpen(false);
                   if (customerAccount) {
-                    signOutCustomer();
+                    openCustomerProfile();
                     return;
                   }
-                  openAccountPrompt("Create an account to save your wishlist and continue checkout.");
+                  openAccountPrompt("Sign in with an email verification code.", "sign-in");
                 }}
               >
-                {customerAccount ? "Sign out" : "Create account"}
+                {customerAccount ? "View profile" : "Sign in"}
               </button>
+              {!customerAccount && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    openAccountPrompt("Create an account to save your wishlist and continue checkout.", "create");
+                  }}
+                >
+                  Create account
+                </button>
+              )}
+              {customerAccount && (
+                <p className="drawer-account-note">
+                  Signed in as <strong>{customerAccount.email}</strong>
+                </p>
+              )}
             </div>
             <div className="drawer-note">
               <p>Designed for every destination.</p>
