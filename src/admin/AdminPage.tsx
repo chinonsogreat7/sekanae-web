@@ -2033,21 +2033,13 @@ export function AdminPage() {
                 Product name
                 <input value={productDraft.name} onChange={(event) => updateProductName(event.target.value)} required />
               </label>
-              <label>
-                Category
-                <input
-                  list="admin-product-categories"
-                  value={productDraft.category}
-                  onChange={(event) => setProductDraft((current) => ({ ...current, category: event.target.value }))}
-                  placeholder="Choose or type a new category"
-                  required
-                />
-                <datalist id="admin-product-categories">
-                  {categoryOptions.map((category) => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </datalist>
-              </label>
+              <CustomSelect
+                label="Category"
+                className="admin-custom-select admin-form-select"
+                value={productDraft.category}
+                onChange={(value) => setProductDraft((current) => ({ ...current, category: value }))}
+                options={categoryOptions.length ? categoryOptions : fallbackCategories}
+              />
               <label>
                 Collection
                 <input value={productDraft.collection} onChange={(event) => setProductDraft((current) => ({ ...current, collection: event.target.value }))} required />
