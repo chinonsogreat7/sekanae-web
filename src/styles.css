@@ -2773,6 +2773,7 @@ p {
 .newsletter-admin-stats {
   display: grid;
   gap: 10px;
+  min-width: 0;
 }
 
 .content-metrics {
@@ -3049,6 +3050,7 @@ p {
   grid-template-columns: 1.8fr 1fr 0.55fr 0.9fr;
   gap: 14px;
   align-items: center;
+  min-width: 0;
   min-height: 48px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
@@ -3092,8 +3094,14 @@ p {
 
 .admin-product-table .admin-table-head,
 .admin-product-table .admin-row {
-  grid-template-columns: 74px minmax(300px, 1.2fr) minmax(120px, 0.35fr) minmax(150px, 0.45fr) minmax(260px, 0.55fr) minmax(390px, 0.7fr);
-  gap: 18px;
+  grid-template-columns: 54px minmax(220px, 1.25fr) minmax(116px, 0.42fr) minmax(126px, 0.46fr) minmax(200px, 0.65fr) minmax(256px, 0.76fr);
+  gap: 12px;
+}
+
+.admin-product-table .admin-row > a {
+  min-width: 0;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .admin-product-table .admin-row > span:first-child {
@@ -3136,12 +3144,20 @@ p {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   min-width: 0;
 }
 
 .admin-product-table .admin-row-actions {
-  justify-content: flex-start;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.admin-product-table .admin-row-actions .admin-inline-button,
+.admin-product-table .admin-row-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 0.66rem;
 }
 
 .admin-status-pill {
@@ -3172,6 +3188,71 @@ p {
   color: var(--gold);
 }
 
+@media (max-width: 1320px) {
+  .admin-product-tools,
+  .admin-bulk-actions-panel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-product-tools button,
+  .admin-bulk-actions-panel > button {
+    width: 100%;
+  }
+
+  .admin-product-table .admin-table-head {
+    display: none;
+  }
+
+  .admin-product-table .admin-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 10px 14px;
+    align-items: start;
+    padding: 14px 0;
+  }
+
+  .admin-product-table .admin-row > span:first-child {
+    grid-row: 1 / 6;
+    align-self: start;
+    padding-top: 6px;
+  }
+
+  .admin-product-table .admin-row > a,
+  .admin-product-table .admin-row > span:nth-child(3),
+  .admin-product-table .admin-row > span:nth-child(4),
+  .admin-product-table .admin-stock-control,
+  .admin-product-table .admin-row-actions {
+    grid-column: 2;
+  }
+
+  .admin-product-table .admin-row > span:nth-child(4)::before,
+  .admin-product-table .admin-stock-control::before,
+  .admin-product-table .admin-row-actions::before {
+    display: block;
+    width: 100%;
+    color: var(--gold);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .admin-product-table .admin-row > span:nth-child(4)::before {
+    content: "Category";
+  }
+
+  .admin-product-table .admin-stock-control::before {
+    content: "Inventory";
+  }
+
+  .admin-product-table .admin-row-actions::before {
+    content: "Actions";
+  }
+
+  .admin-product-table .admin-row-actions {
+    justify-content: flex-start;
+  }
+}
+
 .admin-row a.admin-inline-button,
 .admin-row a.admin-inline-button:visited,
 .admin-row a.admin-inline-button:hover {
@@ -3186,8 +3267,8 @@ p {
 }
 
 .admin-stock-control input {
-  width: 94px;
-  flex: 0 0 94px;
+  width: min(100%, 94px);
+  flex: 1 1 82px;
   min-height: 38px;
   padding: 0 10px;
 }
@@ -4649,7 +4730,7 @@ p {
 
   .admin-product-table .admin-table-head,
   .admin-product-table .admin-row {
-    min-width: 1400px;
+    min-width: 0;
   }
 
   .admin-form-grid,
