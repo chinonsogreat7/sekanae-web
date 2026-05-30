@@ -42,6 +42,7 @@ import { defaultExchangeRates, formatCurrencyAmount, formatMoney, type ExchangeR
 const apiBaseUrl = getApiBaseUrl();
 const adminTokenStorageKey = "sekanae_admin_token";
 const productsPerPage = 8;
+const maxAdminImageUploadBytes = 8 * 1024 * 1024;
 
 const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
@@ -313,20 +314,13 @@ type ApiDataPayload<TData> = ApiPayload<TData> & {
   data: TData;
 };
 
-type CloudinarySignature = {
-  cloudName: string;
-  apiKey: string;
-  folder: string;
-  timestamp: number;
-  signature: string;
-  uploadUrl: string;
-};
-
-type CloudinaryUploadResponse = {
-  secure_url?: string;
-  error?: {
-    message?: string;
-  };
+type AdminMediaUpload = {
+  url: string;
+  publicId?: string;
+  width?: number;
+  height?: number;
+  format?: string;
+  bytes?: number;
 };
 
 function slugify(value: string) {
@@ -347,6 +341,23 @@ function parseList(value: string) {
     .split(/[\n,]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error(`Unable to read ${file.name}.`));
+    });
+    reader.addEventListener("error", () => reject(new Error(`Unable to read ${file.name}.`)));
+    reader.readAsDataURL(file);
+  });
 }
 
 function plainTextFromHtml(value: string) {
@@ -614,8 +625,6 @@ export function AdminPage() {
   const [productMessage, setProductMessage] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [showProductImageUrlEditor, setShowProductImageUrlEditor] = useState(false);
-  const [productImageUrlDraft, setProductImageUrlDraft] = useState("");
   const [productImageError, setProductImageError] = useState<string | null>(null);
   const [customProductTag, setCustomProductTag] = useState("");
   const [customProductTagError, setCustomProductTagError] = useState<string | null>(null);
@@ -771,9 +780,7 @@ export function AdminPage() {
     if (routePath === "products/new") {
       setProductDraft(createProductDraft());
       setProductMessage(null);
-      setProductImageUrlDraft("");
       setProductImageError(null);
-      setShowProductImageUrlEditor(false);
       setCustomProductTag("");
       setCustomProductTagError(null);
       return;
@@ -782,9 +789,7 @@ export function AdminPage() {
     if (routePath.startsWith("products/") && routePath.endsWith("/edit") && selectedProduct) {
       setProductDraft(productToDraft(selectedProduct));
       setProductMessage(null);
-      setProductImageUrlDraft("");
       setProductImageError(null);
-      setShowProductImageUrlEditor(false);
       setCustomProductTag("");
       setCustomProductTagError(null);
     }
@@ -1191,64 +1196,35 @@ export function AdminPage() {
     setProductImageError(null);
   }
 
-  function addProductImageUrls() {
-    const existingImages = parseList(productDraft.images);
-    const nextUrls = parseList(productImageUrlDraft);
-    const invalidUrl = nextUrls.find((url) => {
-      try {
-        const parsed = new URL(url);
-        return parsed.protocol !== "https:" && parsed.protocol !== "http:";
-      } catch {
-        return true;
-      }
-    });
-
-    if (!nextUrls.length) {
-      setProductImageError("Paste at least one image URL.");
-      return;
-    }
-
-    if (invalidUrl) {
-      setProductImageError(`This does not look like a valid image URL: ${invalidUrl}`);
-      return;
-    }
-
-    const images = [...new Set([...existingImages, ...nextUrls])];
-    setProductImages(images);
-    setProductImageUrlDraft("");
-    setProductImageError(null);
-    setProductMessage(`${nextUrls.length} image URL${nextUrls.length === 1 ? "" : "s"} added.`);
-  }
-
   async function uploadAdminImages(files: File[]) {
     if (!adminToken) {
       throw new Error("Sign in again to upload images.");
     }
 
-    const signaturePayload = await readAdmin<CloudinarySignature>("/api/admin/media/cloudinary-signature", {
-      method: "POST",
-    });
+    const nonImageFile = files.find((file) => !file.type.startsWith("image/"));
+    if (nonImageFile) {
+      throw new Error(`${nonImageFile.name} is not an image file.`);
+    }
+
+    const oversizedFile = files.find((file) => file.size > maxAdminImageUploadBytes);
+    if (oversizedFile) {
+      throw new Error(`${oversizedFile.name} is larger than 8 MB.`);
+    }
+
     const uploadedUrls: string[] = [];
 
     for (const file of files) {
-      const body = new FormData();
-      body.append("file", file);
-      body.append("api_key", signaturePayload.data.apiKey);
-      body.append("timestamp", String(signaturePayload.data.timestamp));
-      body.append("folder", signaturePayload.data.folder);
-      body.append("signature", signaturePayload.data.signature);
-
-      const response = await fetch(signaturePayload.data.uploadUrl, {
+      const data = await fileToDataUrl(file);
+      const payload = await readAdmin<AdminMediaUpload>("/api/admin/media/upload", {
         method: "POST",
-        body,
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          data,
+        }),
       });
-      const payload = await response.json() as CloudinaryUploadResponse;
 
-      if (!response.ok || !payload.secure_url) {
-        throw new Error(payload.error?.message ?? `Image upload failed for ${file.name}.`);
-      }
-
-      uploadedUrls.push(payload.secure_url);
+      uploadedUrls.push(payload.data.url);
     }
 
     return uploadedUrls;
@@ -1284,7 +1260,7 @@ export function AdminPage() {
         ...current,
         images: [...parseList(current.images), ...uploadedUrls].join("\n"),
       }));
-      setProductMessage(`${uploadedUrls.length} image${uploadedUrls.length === 1 ? "" : "s"} uploaded.`);
+      setProductMessage(`${uploadedUrls.length} image${uploadedUrls.length === 1 ? "" : "s"} uploaded to Cloudinary. Save the product to publish the update.`);
     } catch (error) {
       setProductImageError(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
@@ -1316,7 +1292,7 @@ export function AdminPage() {
     try {
       const [uploadedUrl] = await uploadAdminImages([file]);
       setCollectionDraft((current) => ({ ...current, image: uploadedUrl }));
-      setCollectionMessage("Collection image uploaded.");
+      setCollectionMessage("Collection image uploaded to Cloudinary. Save the collection to publish the update.");
     } catch (error) {
       setCollectionMessage(error instanceof Error ? error.message : "Collection image upload failed.");
     } finally {
@@ -1338,7 +1314,7 @@ export function AdminPage() {
     try {
       const [uploadedUrl] = await uploadAdminImages([file]);
       setCategoryDraft((current) => ({ ...current, image: uploadedUrl }));
-      setCategoryMessage("Category image uploaded.");
+      setCategoryMessage("Category image uploaded to Cloudinary. Save the category to publish the update.");
     } catch (error) {
       setCategoryMessage(error instanceof Error ? error.message : "Category image upload failed.");
     } finally {
@@ -2164,24 +2140,6 @@ export function AdminPage() {
                   <div className="admin-media-empty">
                     <PackagePlus size={20} aria-hidden="true" />
                     <span>No product photos yet.</span>
-                  </div>
-                )}
-
-                <button className="admin-secondary-action" type="button" onClick={() => setShowProductImageUrlEditor((current) => !current)}>
-                  <Link2 size={14} aria-hidden="true" />
-                  {showProductImageUrlEditor ? "Hide URL fallback" : "Paste image URLs instead"}
-                </button>
-                {showProductImageUrlEditor && (
-                  <div className="admin-image-url-editor">
-                    <textarea
-                      value={productImageUrlDraft}
-                      onChange={(event) => {
-                        setProductImageUrlDraft(event.target.value);
-                        setProductImageError(null);
-                      }}
-                      placeholder="Paste one image URL per line"
-                    />
-                    <button type="button" onClick={addProductImageUrls}>Add image URLs</button>
                   </div>
                 )}
               </div>

@@ -3322,8 +3322,7 @@ p {
   flex-wrap: wrap;
 }
 
-.admin-media-actions button,
-.admin-image-url-editor button {
+.admin-media-actions button {
   min-height: 30px;
   border: 1px solid var(--line);
   background: #fff;
@@ -3348,18 +3347,6 @@ p {
   display: grid;
   place-items: center;
   gap: 6px;
-}
-
-.admin-image-url-editor {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  background: #fff;
-}
-
-.admin-image-url-editor textarea {
-  min-height: 92px;
 }
 
 .admin-single-image-preview {
