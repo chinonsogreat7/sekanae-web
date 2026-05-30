@@ -620,6 +620,9 @@ export function AdminPage() {
   const collectionFormRef = useRef<HTMLFormElement | null>(null);
   const categoryFormRef = useRef<HTMLFormElement | null>(null);
   const contentFormRef = useRef<HTMLFormElement | null>(null);
+  const productImageInputRef = useRef<HTMLInputElement | null>(null);
+  const collectionImageInputRef = useRef<HTMLInputElement | null>(null);
+  const categoryImageInputRef = useRef<HTMLInputElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
@@ -2097,11 +2100,24 @@ export function AdminPage() {
                     <strong>{isUploadingImages ? "Uploading product photos" : "Drop product photos here"}</strong>
                     <span>{parseList(productDraft.images).length} image{parseList(productDraft.images).length === 1 ? "" : "s"} selected. Use the first image as the storefront cover.</span>
                   </div>
-                  <label className="admin-upload-button">
+                  <button
+                    className="admin-upload-button"
+                    type="button"
+                    onClick={() => productImageInputRef.current?.click()}
+                    disabled={isUploadingImages}
+                  >
                     <Upload size={15} aria-hidden="true" />
-                    {isUploadingImages ? "Uploading" : "Choose files"}
-                    <input type="file" accept="image/*" multiple onChange={uploadProductImages} disabled={isUploadingImages} />
-                  </label>
+                    {isUploadingImages ? "Uploading" : "Select images"}
+                  </button>
+                  <input
+                    ref={productImageInputRef}
+                    className="admin-upload-file-input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={uploadProductImages}
+                    disabled={isUploadingImages}
+                  />
                 </div>
 
                 {productImageError && <p className="admin-inline-error" role="alert">{productImageError}</p>}
@@ -2675,10 +2691,23 @@ export function AdminPage() {
               </label>
               <div className="admin-field-wide admin-form-stack">
                 <div className="admin-media-upload">
-                  <label className="admin-upload-button">
-                    {isUploadingCollectionImage ? "Uploading image" : collectionDraft.image ? "Replace image" : "Upload image"}
-                    <input type="file" accept="image/*" onChange={uploadCollectionImage} disabled={isUploadingCollectionImage} />
-                  </label>
+                  <button
+                    className="admin-upload-button"
+                    type="button"
+                    onClick={() => collectionImageInputRef.current?.click()}
+                    disabled={isUploadingCollectionImage}
+                  >
+                    <Upload size={15} aria-hidden="true" />
+                    {isUploadingCollectionImage ? "Uploading image" : collectionDraft.image ? "Replace image" : "Select image"}
+                  </button>
+                  <input
+                    ref={collectionImageInputRef}
+                    className="admin-upload-file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={uploadCollectionImage}
+                    disabled={isUploadingCollectionImage}
+                  />
                   <span>{collectionDraft.image ? "Image uploaded" : "No image uploaded"}</span>
                 </div>
                 {collectionDraft.image && (
@@ -2760,10 +2789,23 @@ export function AdminPage() {
               </label>
               <div className="admin-field-wide admin-form-stack">
                 <div className="admin-media-upload">
-                  <label className="admin-upload-button">
-                    {isUploadingCategoryImage ? "Uploading image" : categoryDraft.image ? "Replace image" : "Upload image"}
-                    <input type="file" accept="image/*" onChange={uploadCategoryImage} disabled={isUploadingCategoryImage} />
-                  </label>
+                  <button
+                    className="admin-upload-button"
+                    type="button"
+                    onClick={() => categoryImageInputRef.current?.click()}
+                    disabled={isUploadingCategoryImage}
+                  >
+                    <Upload size={15} aria-hidden="true" />
+                    {isUploadingCategoryImage ? "Uploading image" : categoryDraft.image ? "Replace image" : "Select image"}
+                  </button>
+                  <input
+                    ref={categoryImageInputRef}
+                    className="admin-upload-file-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={uploadCategoryImage}
+                    disabled={isUploadingCategoryImage}
+                  />
                   <span>{categoryDraft.image ? "Image uploaded" : "No image uploaded"}</span>
                 </div>
                 {categoryDraft.image && (

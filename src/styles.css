@@ -3254,7 +3254,12 @@ p {
   text-transform: uppercase;
 }
 
-.admin-upload-button input {
+.admin-upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.admin-upload-file-input {
   display: none;
 }
 
