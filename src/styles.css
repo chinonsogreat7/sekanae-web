@@ -2909,6 +2909,13 @@ p {
 }
 
 .admin-product-form {
+  --admin-control-background: #fff;
+  --admin-control-border: rgba(35, 28, 24, 0.54);
+  --admin-control-border-active: var(--gold);
+  --admin-control-color: var(--ink);
+  --admin-control-font-size: 0.95rem;
+  --admin-control-height: 42px;
+  --admin-control-padding-x: 10px;
   margin-top: 22px;
   padding-top: 20px;
   border-top: 1px solid var(--line);
@@ -2982,6 +2989,7 @@ p {
 }
 
 .admin-product-form label,
+.admin-product-form .admin-form-select,
 .admin-filters label,
 .admin-order-detail label {
   display: grid;
@@ -2997,6 +3005,64 @@ p {
   color: var(--ink-soft);
   font-size: 0.78rem;
   letter-spacing: 0.04em;
+}
+
+.admin-product-form .admin-form-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-product-form input,
+.admin-product-form select,
+.admin-product-form textarea,
+.admin-product-form .admin-form-select .custom-select-trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--admin-control-height);
+  border: 1px solid var(--admin-control-border);
+  border-radius: 2px;
+  background: var(--admin-control-background);
+  color: var(--admin-control-color);
+  font-size: var(--admin-control-font-size);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-align: left;
+  text-transform: none;
+  box-shadow: none;
+}
+
+.admin-product-form input,
+.admin-product-form select {
+  padding: 0 var(--admin-control-padding-x);
+}
+
+.admin-product-form textarea {
+  padding: var(--admin-control-padding-x);
+}
+
+.admin-product-form .admin-form-select .custom-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 var(--admin-control-padding-x);
+}
+
+.admin-product-form input:hover,
+.admin-product-form select:hover,
+.admin-product-form textarea:hover,
+.admin-product-form .admin-form-select .custom-select-trigger:hover {
+  border-color: rgba(169, 119, 45, 0.62);
+}
+
+.admin-product-form input:focus,
+.admin-product-form select:focus,
+.admin-product-form textarea:focus,
+.admin-product-form .admin-form-select .custom-select-trigger[aria-expanded="true"] {
+  border-color: var(--admin-control-border-active);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(169, 119, 45, 0.14);
 }
 
 .admin-custom-select .custom-select-trigger {
@@ -3035,9 +3101,6 @@ p {
   color: var(--espresso);
 }
 
-.admin-product-form input,
-.admin-product-form select,
-.admin-product-form textarea,
 .admin-filters input,
 .admin-filters select,
 .admin-order-detail select,
