@@ -11,6 +11,7 @@ import {
   productBodySchema,
 } from "./admin-catalog-schemas.js";
 import {
+  listAdminProducts,
   listCategoriesInDatabase,
   softDeleteCategoryInDatabase,
   softDeleteCollectionInDatabase,
@@ -23,6 +24,33 @@ import {
 
 export async function registerAdminCatalogRoutes(app: FastifyInstance) {
   app.addHook("preValidation", requireAdmin);
+
+  app.get("/admin/products", {
+    schema: {
+      tags: ["Admin"],
+      summary: "List admin products",
+      description: "Returns active admin products, including drafts hidden from the storefront.",
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: openApiSchemas.productListResponse,
+        401: openApiSchemas.error,
+        503: openApiSchemas.error,
+      },
+    },
+  }, async () => {
+    const products = await listAdminProducts();
+
+    return ok(products, {
+      total: products.length,
+      limit: products.length,
+      offset: 0,
+      categories: [...new Set(products.map((product) => product.category))].sort(),
+      colors: [...new Set(products.flatMap((product) => product.colors))].sort(),
+      materials: [...new Set(products.map((product) => product.material))].sort(),
+      occasions: [...new Set(products.flatMap((product) => product.occasion))].sort(),
+      tags: [...new Set(products.flatMap((product) => product.tags ?? []))].sort(),
+    });
+  });
 
   app.post("/admin/products", {
     schema: {

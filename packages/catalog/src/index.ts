@@ -26,6 +26,7 @@ export type Product = {
   tags?: string[];
   isNew?: boolean;
   isBridalPreview?: boolean;
+  status?: "draft" | "published";
 };
 
 export type Collection = {

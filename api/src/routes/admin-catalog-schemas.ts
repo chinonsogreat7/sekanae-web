@@ -24,6 +24,7 @@ export const productBodySchema = z.object({
   tags: z.array(z.string().min(1)).default([]),
   isNew: z.boolean().optional(),
   isBridalPreview: z.boolean().optional(),
+  status: z.enum(["draft", "published"]).default("published"),
 });
 
 export const collectionBodySchema = z.object({

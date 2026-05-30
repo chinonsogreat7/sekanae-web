@@ -33,7 +33,14 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance) {
           coalesce((select sum(total_cents)::text from orders where status <> 'cancelled'), '0') as revenue_cents,
           coalesce((select count(*)::text from orders), '0') as order_count,
           coalesce((select count(*)::text from customer_emails), '0') as customer_count,
-          coalesce((select count(*)::text from inventory where quantity <= 5), '0') as low_stock_count,
+          coalesce((
+            select count(*)::text
+            from inventory i
+            join products p on p.id = i.product_id
+            where p.active = true
+              and p.status = 'published'
+              and i.quantity <= 5
+          ), '0') as low_stock_count,
           coalesce((select count(*)::text from newsletter_subscribers where status = 'subscribed'), '0') as newsletter_count
       `),
       pool.query(`
@@ -47,6 +54,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance) {
         from products p
         left join inventory i on i.product_id = p.id
         where p.active = true
+          and p.status = 'published'
         order by coalesce(i.quantity, 0) asc, p.name asc
         limit 8
       `),

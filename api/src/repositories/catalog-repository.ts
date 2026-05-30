@@ -19,6 +19,7 @@ type ProductRow = {
   reviews: number;
   is_new: boolean;
   is_bridal_preview: boolean;
+  status: "draft" | "published";
   stock: number;
   images: string[];
   product_colors: string[];
@@ -59,6 +60,7 @@ function mapProduct(row: ProductRow): Product {
     tags: row.product_tags.length ? row.product_tags : undefined,
     isNew: row.is_new || undefined,
     isBridalPreview: row.is_bridal_preview || undefined,
+    status: row.status,
   };
 }
 
@@ -73,13 +75,35 @@ async function listProductOptionValues() {
       select distinct category as value
       from products
       where active = true
+        and status = 'published'
         and not exists (select 1 from product_categories where active = true)
       order by value asc
     `),
-    pool.query<{ value: string }>("select distinct color as value from product_colors order by color asc"),
-    pool.query<{ value: string }>("select distinct material as value from products where active = true order by material asc"),
-    pool.query<{ value: string }>("select distinct occasion as value from product_occasions order by occasion asc"),
-    pool.query<{ value: string }>("select distinct tag as value from product_tags order by tag asc"),
+    pool.query<{ value: string }>(`
+      select distinct pc.color as value
+      from product_colors pc
+      join products p on p.id = pc.product_id
+      where p.active = true
+        and p.status = 'published'
+      order by value asc
+    `),
+    pool.query<{ value: string }>("select distinct material as value from products where active = true and status = 'published' order by material asc"),
+    pool.query<{ value: string }>(`
+      select distinct po.occasion as value
+      from product_occasions po
+      join products p on p.id = po.product_id
+      where p.active = true
+        and p.status = 'published'
+      order by value asc
+    `),
+    pool.query<{ value: string }>(`
+      select distinct pt.tag as value
+      from product_tags pt
+      join products p on p.id = pt.product_id
+      where p.active = true
+        and p.status = 'published'
+      order by value asc
+    `),
   ]);
 
   return {
@@ -119,7 +143,7 @@ function sortSql(sort: ProductSort | undefined) {
 
 function buildProductWhere(filters: ProductFilters) {
   const values: Array<string | number> = [];
-  const where = ["p.active = true"];
+  const where = ["p.active = true", "p.status = 'published'"];
 
   if (filters.category) {
     values.push(filters.category);
@@ -222,7 +246,7 @@ export async function getProductBySlugFromDatabase(slug: string): Promise<Produc
         coalesce((select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id), '{}'::text[]) as product_tags
       from products p
       left join inventory i on i.product_id = p.id
-      where p.active = true and p.slug = $1
+      where p.active = true and p.status = 'published' and p.slug = $1
       limit 1
     `,
     [slug],
@@ -231,7 +255,30 @@ export async function getProductBySlugFromDatabase(slug: string): Promise<Produc
   return result.rows[0] ? mapProduct(result.rows[0]) : undefined;
 }
 
-export async function getProductByIdFromDatabase(id: string): Promise<Product | undefined> {
+export async function getProductByIdFromDatabase(id: string, options: { includeDrafts?: boolean } = {}): Promise<Product | undefined> {
+  const pool = getPool();
+  const statusSql = options.includeDrafts ? "" : "and p.status = 'published'";
+  const result = await pool.query<ProductRow>(
+    `
+      select
+        p.*,
+        coalesce(i.quantity, 0) as stock,
+        coalesce((select array_agg(pi.url order by pi.sort_order) from product_images pi where pi.product_id = p.id), '{}'::text[]) as images,
+        coalesce((select array_agg(pc.color order by pc.sort_order) from product_colors pc where pc.product_id = p.id), '{}'::text[]) as product_colors,
+        coalesce((select array_agg(po.occasion order by po.sort_order) from product_occasions po where po.product_id = p.id), '{}'::text[]) as product_occasions,
+        coalesce((select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id), '{}'::text[]) as product_tags
+      from products p
+      left join inventory i on i.product_id = p.id
+      where p.active = true ${statusSql} and p.id = $1
+      limit 1
+    `,
+    [id],
+  );
+
+  return result.rows[0] ? mapProduct(result.rows[0]) : undefined;
+}
+
+export async function listAdminProductsFromDatabase(): Promise<Product[]> {
   const pool = getPool();
   const result = await pool.query<ProductRow>(
     `
@@ -244,13 +291,12 @@ export async function getProductByIdFromDatabase(id: string): Promise<Product | 
         coalesce((select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id), '{}'::text[]) as product_tags
       from products p
       left join inventory i on i.product_id = p.id
-      where p.active = true and p.id = $1
-      limit 1
+      where p.active = true
+      order by p.updated_at desc, p.created_at desc
     `,
-    [id],
   );
 
-  return result.rows[0] ? mapProduct(result.rows[0]) : undefined;
+  return result.rows.map(mapProduct);
 }
 
 export async function listCollectionsFromDatabase(): Promise<Collection[]> {

@@ -2571,7 +2571,7 @@ p {
 .admin-product-tools,
 .admin-bulk-actions-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.5fr) minmax(160px, 0.45fr) auto;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.45fr) minmax(150px, 0.35fr) minmax(160px, 0.4fr) auto;
   gap: 12px;
   align-items: end;
   margin-bottom: 14px;
@@ -2965,7 +2965,7 @@ p {
 
 .admin-product-table .admin-table-head,
 .admin-product-table .admin-row {
-  grid-template-columns: 74px minmax(320px, 1.3fr) minmax(160px, 0.5fr) minmax(270px, 0.55fr) minmax(390px, 0.7fr);
+  grid-template-columns: 74px minmax(300px, 1.2fr) minmax(120px, 0.35fr) minmax(150px, 0.45fr) minmax(260px, 0.55fr) minmax(390px, 0.7fr);
   gap: 18px;
 }
 
@@ -3015,6 +3015,34 @@ p {
 
 .admin-product-table .admin-row-actions {
   justify-content: flex-start;
+}
+
+.admin-status-pill {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  padding: 0 10px;
+  background: #faf8f4;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-status-pill-published {
+  border-color: rgba(58, 106, 69, 0.28);
+  background: rgba(58, 106, 69, 0.08);
+  color: #3a6a45;
+}
+
+.admin-status-pill-draft {
+  border-color: rgba(169, 119, 45, 0.34);
+  background: rgba(169, 119, 45, 0.08);
+  color: var(--gold);
 }
 
 .admin-row a.admin-inline-button,
@@ -4476,7 +4504,7 @@ p {
 
   .admin-product-table .admin-table-head,
   .admin-product-table .admin-row {
-    min-width: 1280px;
+    min-width: 1400px;
   }
 
   .admin-form-grid,

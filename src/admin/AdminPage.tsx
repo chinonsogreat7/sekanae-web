@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 import { type ChangeEvent, type ClipboardEvent, type DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { getProducts } from "../api/client";
 import { getApiBaseUrl } from "../api/config";
 import { CustomSelect } from "../components/CustomSelect";
 import { categories as fallbackCategories, products as fallbackProducts, type Collection, type CurrencyCode, type Product } from "../data/catalog";
@@ -63,7 +62,9 @@ const bulkProductCsvColumns = [
   "tags",
   "isNew",
   "isBridalPreview",
+  "status",
 ] as const;
+const optionalBulkProductCsvColumns = new Set<string>(["status"]);
 
 const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
@@ -120,6 +121,7 @@ type ProductDraft = {
   isNew: boolean;
   isBridalPreview: boolean;
   tags: string;
+  status: "draft" | "published";
 };
 
 type BulkProductImportRow = {
@@ -534,6 +536,7 @@ function createProductDraft(): ProductDraft {
     isNew: false,
     isBridalPreview: false,
     tags: "",
+    status: "draft",
   };
 }
 
@@ -546,7 +549,7 @@ function productImportRowsFromCsv(text: string): BulkProductImportRow[] {
   }
 
   const headers = headerRow.map((header) => header.trim());
-  const missingHeaders = bulkProductCsvColumns.filter((column) => !headers.includes(column));
+  const missingHeaders = bulkProductCsvColumns.filter((column) => !optionalBulkProductCsvColumns.has(column) && !headers.includes(column));
 
   if (missingHeaders.length) {
     throw new Error(`Missing CSV column${missingHeaders.length === 1 ? "" : "s"}: ${missingHeaders.join(", ")}`);
@@ -578,6 +581,7 @@ function productImportRowsFromCsv(text: string): BulkProductImportRow[] {
     draft.tags = record.tags;
     draft.isNew = parseBoolean(record.isNew);
     draft.isBridalPreview = parseBoolean(record.isBridalPreview);
+    draft.status = record.status === "published" ? "published" : "draft";
 
     if (!draft.name.trim()) errors.push("Name is required.");
     if (!draft.category.trim()) errors.push("Category is required.");
@@ -694,6 +698,7 @@ function productToDraft(product: Product): ProductDraft {
     isNew: Boolean(product.isNew),
     isBridalPreview: Boolean(product.isBridalPreview),
     tags: productTags(product).join(", "),
+    status: product.status ?? "published",
   };
 }
 
@@ -724,6 +729,7 @@ function draftToProduct(draft: ProductDraft): Product {
     tags,
     isNew: draft.isNew || tags.includes("New arrival") || undefined,
     isBridalPreview: draft.isBridalPreview || tags.includes("Bridal preview") || undefined,
+    status: draft.status,
   };
 }
 
@@ -829,9 +835,10 @@ export function AdminPage() {
   const [productPage, setProductPage] = useState(1);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [productStatusFilter, setProductStatusFilter] = useState<"" | "draft" | "published">("");
   const [productStockFilter, setProductStockFilter] = useState<"" | "low" | "out">("");
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-  const [bulkAction, setBulkAction] = useState<"" | "category" | "collection" | "stock" | "new" | "bridal" | "archive">("");
+  const [bulkAction, setBulkAction] = useState<"" | "category" | "collection" | "stock" | "new" | "bridal" | "publish" | "draft" | "archive">("");
   const [bulkActionValue, setBulkActionValue] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersTotal, setOrdersTotal] = useState(0);
@@ -897,15 +904,16 @@ export function AdminPage() {
         productTags(product).join(" "),
       ].some((value) => value.toLowerCase().includes(search));
       const matchesCategory = !productCategoryFilter || product.category === productCategoryFilter;
+      const matchesStatus = !productStatusFilter || (product.status ?? "published") === productStatusFilter;
       const matchesStock = productStockFilter === "low"
         ? product.stock > 0 && product.stock <= 5
         : productStockFilter === "out"
           ? product.stock === 0
           : true;
 
-      return matchesSearch && matchesCategory && matchesStock;
+      return matchesSearch && matchesCategory && matchesStatus && matchesStock;
     });
-  }, [adminProducts, productCategoryFilter, productSearch, productStockFilter]);
+  }, [adminProducts, productCategoryFilter, productSearch, productStatusFilter, productStockFilter]);
   const productPageCount = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
   const customerPageCount = Math.max(1, Math.ceil(customersTotal / productsPerPage));
   const visibleProducts = useMemo(() => {
@@ -1008,7 +1016,7 @@ export function AdminPage() {
 
   useEffect(() => {
     setProductPage(1);
-  }, [productCategoryFilter, productSearch, productStockFilter]);
+  }, [productCategoryFilter, productSearch, productStatusFilter, productStockFilter]);
 
   useEffect(() => {
     if (customerPage > customerPageCount) {
@@ -1120,15 +1128,22 @@ export function AdminPage() {
   }
 
   async function readProducts() {
+    if (!adminToken) {
+      setAdminProducts(fallbackProducts);
+      setInventoryDrafts(Object.fromEntries(fallbackProducts.map((product) => [product.id, String(product.stock)])));
+      return;
+    }
+
     try {
-      const productList = await getProducts();
+      const payload = await readAdmin<Product[]>("/api/admin/products");
+      const productList = payload.data;
       setAdminProducts(productList);
       setInventoryDrafts(Object.fromEntries(productList.map((product) => [product.id, String(product.stock)])));
       setProductMessage(null);
     } catch {
       setAdminProducts(fallbackProducts);
       setInventoryDrafts(Object.fromEntries(fallbackProducts.map((product) => [product.id, String(product.stock)])));
-      setProductMessage("Live products are unavailable, so the studio is showing the local fallback catalog.");
+      setProductMessage("Admin products are unavailable, so the studio is showing the local fallback catalog.");
     }
   }
 
@@ -1305,6 +1320,7 @@ export function AdminPage() {
       "New arrival",
       "true",
       "false",
+      "draft",
     ];
     const csv = [
       bulkProductCsvColumns.join(","),
@@ -1459,7 +1475,7 @@ export function AdminPage() {
         body: JSON.stringify(product),
       });
 
-      setProductMessage(`${payload.data.name} has been saved.`);
+      setProductMessage(`${payload.data.name} has been saved as ${labelize(payload.data.status ?? "published")}.`);
       setProductDraft(productToDraft(payload.data));
       await readProducts();
       await readDashboard();
@@ -1578,6 +1594,14 @@ export function AdminPage() {
         if (bulkAction === "bridal") {
           patch.isBridalPreview = true;
           patch.tags = [...new Set([...nextTags, "Bridal preview"])];
+        }
+
+        if (bulkAction === "publish") {
+          patch.status = "published";
+        }
+
+        if (bulkAction === "draft") {
+          patch.status = "draft";
         }
 
         if ((bulkAction === "category" || bulkAction === "collection") && !bulkActionValue.trim()) {
@@ -2438,11 +2462,23 @@ export function AdminPage() {
                 { label: "Out of stock", value: "out" },
               ]}
             />
+            <CustomSelect
+              label="Status"
+              className="admin-custom-select admin-form-select"
+              value={productStatusFilter}
+              onChange={(value) => setProductStatusFilter(value as "" | "draft" | "published")}
+              options={[
+                { label: "All statuses", value: "" },
+                { label: "Draft", value: "draft" },
+                { label: "Published", value: "published" },
+              ]}
+            />
             <button
               type="button"
               onClick={() => {
                 setProductSearch("");
                 setProductCategoryFilter("");
+                setProductStatusFilter("");
                 setProductStockFilter("");
               }}
             >
@@ -2472,6 +2508,8 @@ export function AdminPage() {
                 { label: "Set stock", value: "stock" },
                 { label: "Mark new arrival", value: "new" },
                 { label: "Mark bridal preview", value: "bridal" },
+                { label: "Publish selected", value: "publish" },
+                { label: "Move to draft", value: "draft" },
                 { label: "Archive selected", value: "archive" },
               ]}
             />
@@ -2557,7 +2595,7 @@ export function AdminPage() {
           </div>
           <div className="admin-table admin-product-table">
             <div className="admin-table-head">
-              <span>Select</span><span>Product</span><span>Category</span><span>Inventory</span><span>Actions</span>
+              <span>Select</span><span>Product</span><span>Status</span><span>Category</span><span>Inventory</span><span>Actions</span>
             </div>
             {visibleProducts.map((product) => (
               <div className="admin-row" key={product.id}>
@@ -2572,6 +2610,11 @@ export function AdminPage() {
                 <Link to={`${adminBase}/products/${encodeURIComponent(product.id)}`}>
                   <img src={product.images[0]} alt="" /> {product.name}
                 </Link>
+                <span>
+                  <span className={`admin-status-pill admin-status-pill-${product.status ?? "published"}`}>
+                    {labelize(product.status ?? "published")}
+                  </span>
+                </span>
                 <span>{product.category}{product.stock > 0 && product.stock <= 5 ? <small>Low stock</small> : null}</span>
                 <span className="admin-stock-control">
                   <input
@@ -2631,7 +2674,9 @@ export function AdminPage() {
         <div className="panel-heading">
           <div>
             <h2>{selectedProduct.name}</h2>
-            <p className="admin-status admin-status-tight">{selectedProduct.collection} / {selectedProduct.category}</p>
+            <p className="admin-status admin-status-tight">
+              {selectedProduct.collection} / {selectedProduct.category} / {labelize(selectedProduct.status ?? "published")}
+            </p>
           </div>
           <div className="admin-row-actions">
             <Link className="admin-inline-button" to={`${adminBase}/products/${encodeURIComponent(selectedProduct.id)}/edit`}>Edit</Link>
@@ -2702,6 +2747,16 @@ export function AdminPage() {
                 value={productDraft.category}
                 onChange={(value) => setProductDraft((current) => ({ ...current, category: value }))}
                 options={categoryOptions.length ? categoryOptions : fallbackCategories}
+              />
+              <CustomSelect
+                label="Status"
+                className="admin-custom-select admin-form-select"
+                value={productDraft.status}
+                onChange={(value) => setProductDraft((current) => ({ ...current, status: value as ProductDraft["status"] }))}
+                options={[
+                  { label: "Draft", value: "draft" },
+                  { label: "Published", value: "published" },
+                ]}
               />
               <label>
                 Collection

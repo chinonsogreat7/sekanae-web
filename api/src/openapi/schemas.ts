@@ -63,6 +63,7 @@ const productSchema = {
     tags: { type: "array", items: { type: "string" } },
     isNew: { type: "boolean" },
     isBridalPreview: { type: "boolean" },
+    status: { type: "string", enum: ["draft", "published"] },
   },
 } as const;
 

@@ -2,6 +2,7 @@ import type { Collection, Product } from "../../../packages/catalog/src/index.js
 import { getPool } from "../db/pool.js";
 import {
   getProductByIdFromDatabase,
+  listAdminProductsFromDatabase,
   listCollectionsFromDatabase,
 } from "./catalog-repository.js";
 
@@ -55,6 +56,7 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
   const tags = product.tags ?? [];
   const isNew = product.isNew || tags.some((tag) => tag.toLowerCase() === "new arrival");
   const isBridalPreview = product.isBridalPreview || tags.some((tag) => tag.toLowerCase() === "bridal preview");
+  const status = product.status ?? "published";
 
   try {
     await client.query("begin");
@@ -90,9 +92,10 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
           reviews,
           is_new,
           is_bridal_preview,
+          status,
           active
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         on conflict (id) do update set
           slug = excluded.slug,
           name = excluded.name,
@@ -109,6 +112,7 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
           reviews = excluded.reviews,
           is_new = excluded.is_new,
           is_bridal_preview = excluded.is_bridal_preview,
+          status = excluded.status,
           active = excluded.active,
           updated_at = now()
       `,
@@ -129,6 +133,7 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
         product.reviews,
         Boolean(isNew),
         Boolean(isBridalPreview),
+        status,
         true,
       ],
     );
@@ -197,13 +202,17 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
     client.release();
   }
 
-  const savedProduct = await getProductByIdFromDatabase(product.id);
+  const savedProduct = await getProductByIdFromDatabase(product.id, { includeDrafts: true });
 
   if (!savedProduct) {
     throw new Error("Product was saved but could not be read back.");
   }
 
   return savedProduct;
+}
+
+export async function listAdminProducts(): Promise<Product[]> {
+  return listAdminProductsFromDatabase();
 }
 
 export async function updateInventoryInDatabase(productId: string, quantity: number): Promise<Product | undefined> {
@@ -228,7 +237,7 @@ export async function updateInventoryInDatabase(productId: string, quantity: num
     [productId, quantity],
   );
 
-  return getProductByIdFromDatabase(productId);
+  return getProductByIdFromDatabase(productId, { includeDrafts: true });
 }
 
 export async function softDeleteProductInDatabase(productId: string): Promise<boolean> {
