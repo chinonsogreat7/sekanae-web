@@ -2502,6 +2502,59 @@ p {
   font-size: 0.68rem;
 }
 
+.admin-bulk-upload {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: #faf8f4;
+}
+
+.admin-bulk-upload strong {
+  color: var(--ink);
+  font-size: 0.88rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-bulk-upload p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.admin-bulk-actions,
+.admin-bulk-summary,
+.admin-bulk-errors {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-bulk-actions button {
+  min-height: 36px;
+}
+
+.admin-bulk-summary span {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  padding: 7px 10px;
+  font-size: 0.72rem;
+}
+
+.admin-bulk-errors {
+  display: grid;
+  padding: 10px;
+  border: 1px solid rgba(157, 36, 36, 0.32);
+  background: rgba(157, 36, 36, 0.06);
+  color: #7d1f1f;
+  font-size: 0.78rem;
+}
+
 .admin-table,
 .order-list,
 .market-list,

@@ -43,6 +43,27 @@ const apiBaseUrl = getApiBaseUrl();
 const adminTokenStorageKey = "sekanae_admin_token";
 const productsPerPage = 8;
 const maxAdminImageUploadBytes = 8 * 1024 * 1024;
+const bulkProductCsvColumns = [
+  "name",
+  "category",
+  "collection",
+  "price",
+  "colors",
+  "material",
+  "occasion",
+  "imageFiles",
+  "description",
+  "detailsMaterials",
+  "detailsDimensions",
+  "detailsCare",
+  "detailsShipping",
+  "stock",
+  "rating",
+  "reviews",
+  "tags",
+  "isNew",
+  "isBridalPreview",
+] as const;
 
 const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
@@ -99,6 +120,13 @@ type ProductDraft = {
   isNew: boolean;
   isBridalPreview: boolean;
   tags: string;
+};
+
+type BulkProductImportRow = {
+  rowNumber: number;
+  draft: ProductDraft;
+  imageFileNames: string[];
+  errors: string[];
 };
 
 type Address = {
@@ -343,6 +371,89 @@ function parseList(value: string) {
     .filter(Boolean);
 }
 
+function parsePipeList(value: string) {
+  return value
+    .split("|")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let isQuoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    const nextCharacter = text[index + 1];
+
+    if (character === "\"") {
+      if (isQuoted && nextCharacter === "\"") {
+        cell += "\"";
+        index += 1;
+      } else {
+        isQuoted = !isQuoted;
+      }
+      continue;
+    }
+
+    if (character === "," && !isQuoted) {
+      row.push(cell.trim());
+      cell = "";
+      continue;
+    }
+
+    if ((character === "\n" || character === "\r") && !isQuoted) {
+      if (character === "\r" && nextCharacter === "\n") {
+        index += 1;
+      }
+      row.push(cell.trim());
+      if (row.some(Boolean)) {
+        rows.push(row);
+      }
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += character;
+  }
+
+  row.push(cell.trim());
+  if (row.some(Boolean)) {
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function csvEscape(value: string | number | boolean) {
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
+}
+
+function parseBoolean(value: string) {
+  return ["true", "yes", "1", "y"].includes(value.trim().toLowerCase());
+}
+
+function readTextFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.addEventListener("load", () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error(`Unable to read ${file.name}.`));
+    });
+    reader.addEventListener("error", () => reject(new Error(`Unable to read ${file.name}.`)));
+    reader.readAsText(file);
+  });
+}
+
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -416,6 +527,74 @@ function createProductDraft(): ProductDraft {
     isBridalPreview: false,
     tags: "",
   };
+}
+
+function productImportRowsFromCsv(text: string): BulkProductImportRow[] {
+  const rows = parseCsv(text);
+  const [headerRow, ...dataRows] = rows;
+
+  if (!headerRow) {
+    throw new Error("Upload a CSV with product headers.");
+  }
+
+  const headers = headerRow.map((header) => header.trim());
+  const missingHeaders = bulkProductCsvColumns.filter((column) => !headers.includes(column));
+
+  if (missingHeaders.length) {
+    throw new Error(`Missing CSV column${missingHeaders.length === 1 ? "" : "s"}: ${missingHeaders.join(", ")}`);
+  }
+
+  return dataRows.map((row, index) => {
+    const record = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex] ?? ""]));
+    const draft = createProductDraft();
+    const imageFileNames = parsePipeList(record.imageFiles);
+    const errors: string[] = [];
+
+    draft.name = record.name;
+    draft.id = productIdFromName(record.name);
+    draft.slug = slugify(record.name);
+    draft.category = record.category || draft.category;
+    draft.collection = record.collection;
+    draft.price = record.price;
+    draft.colors = record.colors;
+    draft.material = record.material;
+    draft.occasion = record.occasion;
+    draft.description = record.description;
+    draft.detailsMaterials = record.detailsMaterials;
+    draft.detailsDimensions = record.detailsDimensions;
+    draft.detailsCare = record.detailsCare;
+    draft.detailsShipping = record.detailsShipping;
+    draft.stock = record.stock || "0";
+    draft.rating = record.rating || "0";
+    draft.reviews = record.reviews || "0";
+    draft.tags = record.tags;
+    draft.isNew = parseBoolean(record.isNew);
+    draft.isBridalPreview = parseBoolean(record.isBridalPreview);
+
+    if (!draft.name.trim()) errors.push("Name is required.");
+    if (!draft.category.trim()) errors.push("Category is required.");
+    if (!draft.collection.trim()) errors.push("Collection is required.");
+    if (!draft.price.trim() || Number.isNaN(Number(draft.price))) errors.push("Price must be a number.");
+    if (!parseList(draft.colors).length) errors.push("Add at least one color.");
+    if (!draft.material.trim()) errors.push("Material is required.");
+    if (!parseList(draft.occasion).length) errors.push("Add at least one occasion.");
+    if (!imageFileNames.length) errors.push("Add at least one image file name.");
+    if (!draft.description.trim()) errors.push("Description is required.");
+    if (!draft.detailsMaterials.trim()) errors.push("Details materials is required.");
+    if (!draft.detailsDimensions.trim()) errors.push("Details dimensions is required.");
+    if (!draft.detailsCare.trim()) errors.push("Details care is required.");
+    if (!draft.detailsShipping.trim()) errors.push("Details shipping is required.");
+    if (Number.isNaN(Number(draft.stock))) errors.push("Stock must be a number.");
+    if (Number.isNaN(Number(draft.rating))) errors.push("Rating must be a number.");
+    if (Number.isNaN(Number(draft.reviews))) errors.push("Reviews must be a number.");
+
+    return {
+      rowNumber: index + 2,
+      draft,
+      imageFileNames,
+      errors,
+    };
+  });
 }
 
 function createCollectionDraft(): CollectionDraft {
@@ -621,6 +800,8 @@ export function AdminPage() {
   const categoryFormRef = useRef<HTMLFormElement | null>(null);
   const contentFormRef = useRef<HTMLFormElement | null>(null);
   const productImageInputRef = useRef<HTMLInputElement | null>(null);
+  const bulkProductCsvInputRef = useRef<HTMLInputElement | null>(null);
+  const bulkProductImageInputRef = useRef<HTMLInputElement | null>(null);
   const collectionImageInputRef = useRef<HTMLInputElement | null>(null);
   const categoryImageInputRef = useRef<HTMLInputElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
@@ -629,6 +810,10 @@ export function AdminPage() {
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [productImageError, setProductImageError] = useState<string | null>(null);
+  const [bulkProductRows, setBulkProductRows] = useState<BulkProductImportRow[]>([]);
+  const [bulkProductImages, setBulkProductImages] = useState<File[]>([]);
+  const [bulkProductMessage, setBulkProductMessage] = useState<string | null>(null);
+  const [isBulkImportingProducts, setIsBulkImportingProducts] = useState(false);
   const [customProductTag, setCustomProductTag] = useState("");
   const [customProductTagError, setCustomProductTagError] = useState<string | null>(null);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
@@ -699,6 +884,15 @@ export function AdminPage() {
     ].filter(Boolean))].sort(),
     [adminProducts, categories, productDraft.category],
   );
+  const bulkProductImportStatus = useMemo(() => {
+    const validRows = bulkProductRows.filter((row) => !row.errors.length);
+    const invalidRows = bulkProductRows.length - validRows.length;
+
+    return {
+      validRows,
+      invalidRows,
+    };
+  }, [bulkProductRows]);
   const tagOptions = useMemo(
     () => [...new Set([
       "New arrival",
@@ -1039,6 +1233,146 @@ export function AdminPage() {
     setCategoryDraft(categoryToDraft(category));
     setCategoryMessage(`Editing ${category.name}. Update the form and save when ready.`);
     categoryFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function downloadBulkProductTemplate() {
+    const sampleRow = [
+      "Monde Structured Top Handle",
+      "Handbags",
+      "Voyage Essentials",
+      "640",
+      "#3c3434, Black",
+      "Italian leather",
+      "Work, Travel",
+      "monde-front.jpg|monde-side.jpg",
+      "Structured top-handle bag for polished daily movement.",
+      "Italian leather, cotton lining",
+      "28cm W x 20cm H x 10cm D",
+      "Store in dust bag and wipe clean.",
+      "Ships in 2-4 business days.",
+      "12",
+      "0",
+      "0",
+      "New arrival",
+      "true",
+      "false",
+    ];
+    const csv = [
+      bulkProductCsvColumns.join(","),
+      sampleRow.map(csvEscape).join(","),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = "sekanae-product-bulk-template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function loadBulkProductCsv(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const rows = productImportRowsFromCsv(await readTextFile(file));
+      setBulkProductRows(rows);
+      setBulkProductMessage(`${rows.length} product row${rows.length === 1 ? "" : "s"} loaded from ${file.name}.`);
+    } catch (error) {
+      setBulkProductRows([]);
+      setBulkProductMessage(error instanceof Error ? error.message : "Unable to read product CSV.");
+    }
+  }
+
+  function selectBulkProductImages(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+
+    setBulkProductImages(files);
+    setBulkProductMessage(`${files.length} product image file${files.length === 1 ? "" : "s"} selected.`);
+  }
+
+  async function importBulkProducts() {
+    if (!adminToken) {
+      setBulkProductMessage("Sign in again to import products.");
+      return;
+    }
+
+    const validRows = bulkProductImportStatus.validRows;
+    if (!validRows.length) {
+      setBulkProductMessage("Load a valid product CSV before importing.");
+      return;
+    }
+
+    const imageFilesByName = new Map(bulkProductImages.map((file) => [file.name, file]));
+    const missingImageNames = [...new Set(validRows.flatMap((row) => row.imageFileNames))]
+      .filter((fileName) => !imageFilesByName.has(fileName));
+
+    if (missingImageNames.length) {
+      setBulkProductMessage(`Select these image files before importing: ${missingImageNames.join(", ")}`);
+      return;
+    }
+
+    setIsBulkImportingProducts(true);
+    setBulkProductMessage("Uploading images and creating products...");
+
+    const uploadedImageUrls = new Map<string, string>();
+    let importedCount = 0;
+    const failedRows: string[] = [];
+
+    try {
+      for (const row of validRows) {
+        try {
+          const imageUrls: string[] = [];
+
+          for (const fileName of row.imageFileNames) {
+            const cachedUrl = uploadedImageUrls.get(fileName);
+
+            if (cachedUrl) {
+              imageUrls.push(cachedUrl);
+              continue;
+            }
+
+            const file = imageFilesByName.get(fileName);
+            if (!file) {
+              throw new Error(`${fileName} was not selected.`);
+            }
+
+            const [uploadedUrl] = await uploadAdminImages([file]);
+            uploadedImageUrls.set(fileName, uploadedUrl);
+            imageUrls.push(uploadedUrl);
+          }
+
+          const product = draftToProduct({
+            ...row.draft,
+            images: imageUrls.join("\n"),
+          });
+
+          await readAdmin<Product>("/api/admin/products", {
+            method: "POST",
+            body: JSON.stringify(product),
+          });
+          importedCount += 1;
+        } catch (error) {
+          failedRows.push(`Row ${row.rowNumber}: ${error instanceof Error ? error.message : "Import failed."}`);
+        }
+      }
+
+      await readProducts();
+      await readDashboard();
+      await readAudit();
+
+      setBulkProductMessage([
+        `${importedCount} product${importedCount === 1 ? "" : "s"} imported.`,
+        failedRows.length ? `${failedRows.length} failed: ${failedRows.join(" ")}` : "",
+      ].filter(Boolean).join(" "));
+    } finally {
+      setIsBulkImportingProducts(false);
+    }
   }
 
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
@@ -1899,6 +2233,60 @@ export function AdminPage() {
             <Link className="admin-button-link" to={`${adminBase}/products/new`}>
               <PackagePlus size={16} /> New product
             </Link>
+          </div>
+          <div className="admin-bulk-upload">
+            <div>
+              <strong>Bulk add products</strong>
+              <p>
+                Upload a CSV, then select the matching image files from your computer. The imageFiles column should list file names separated by |.
+              </p>
+            </div>
+            <div className="admin-bulk-actions">
+              <button type="button" onClick={downloadBulkProductTemplate}>
+                <ClipboardList size={15} /> Template
+              </button>
+              <button type="button" onClick={() => bulkProductCsvInputRef.current?.click()} disabled={isBulkImportingProducts}>
+                <Upload size={15} /> Select CSV
+              </button>
+              <input
+                ref={bulkProductCsvInputRef}
+                className="admin-upload-file-input"
+                type="file"
+                accept=".csv,text/csv"
+                onChange={loadBulkProductCsv}
+                disabled={isBulkImportingProducts}
+              />
+              <button type="button" onClick={() => bulkProductImageInputRef.current?.click()} disabled={isBulkImportingProducts}>
+                <Upload size={15} /> Select images
+              </button>
+              <input
+                ref={bulkProductImageInputRef}
+                className="admin-upload-file-input"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={selectBulkProductImages}
+                disabled={isBulkImportingProducts}
+              />
+              <button type="button" onClick={importBulkProducts} disabled={isBulkImportingProducts || !bulkProductImportStatus.validRows.length}>
+                {isBulkImportingProducts ? "Importing" : "Import products"}
+              </button>
+            </div>
+            {(bulkProductRows.length > 0 || bulkProductImages.length > 0) && (
+              <div className="admin-bulk-summary">
+                <span>{bulkProductImportStatus.validRows.length} valid row{bulkProductImportStatus.validRows.length === 1 ? "" : "s"}</span>
+                <span>{bulkProductImportStatus.invalidRows} row{bulkProductImportStatus.invalidRows === 1 ? "" : "s"} need fixes</span>
+                <span>{bulkProductImages.length} image file{bulkProductImages.length === 1 ? "" : "s"} selected</span>
+              </div>
+            )}
+            {bulkProductRows.some((row) => row.errors.length) && (
+              <div className="admin-bulk-errors" role="alert">
+                {bulkProductRows.filter((row) => row.errors.length).slice(0, 4).map((row) => (
+                  <span key={row.rowNumber}>Row {row.rowNumber}: {row.errors.join(" ")}</span>
+                ))}
+              </div>
+            )}
+            {bulkProductMessage && <p className="admin-status admin-status-tight">{bulkProductMessage}</p>}
           </div>
           <div className="admin-table admin-product-table">
             <div className="admin-table-head">
