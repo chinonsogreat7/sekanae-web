@@ -1,4 +1,4 @@
-import { ChevronRight, Heart, PackageCheck, Ruler, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight, Heart, Maximize2, PackageCheck, Ruler, ShieldCheck, Star, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getProduct } from "../api/client";
@@ -8,7 +8,34 @@ import { useStore } from "../context/StoreContext";
 import { useCatalog } from "../context/CatalogContext";
 import { type Product } from "../data/catalog";
 import { formatMoney } from "../utils/money";
-import { getSwatchClassName, getSwatchStyle } from "../utils/product-display";
+import { getProductTags, getSwatchClassName, getSwatchStyle } from "../utils/product-display";
+
+const fallbackImage = "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=1000&q=85";
+const recentlyViewedStorageKey = "sekanae_recently_viewed_products";
+
+function uniqueOverlapScore(values: string[], candidateValues: string[], points: number) {
+  const candidateSet = new Set(candidateValues.map((value) => value.toLowerCase()));
+  return [...new Set(values.map((value) => value.toLowerCase()))].filter((value) => candidateSet.has(value)).length * points;
+}
+
+function relatedProductScore(product: Product, candidate: Product) {
+  return [
+    candidate.collection === product.collection ? 5 : 0,
+    candidate.category === product.category ? 4 : 0,
+    candidate.material === product.material ? 2 : 0,
+    uniqueOverlapScore(product.occasion, candidate.occasion, 2),
+    uniqueOverlapScore(product.colors, candidate.colors, 1),
+    uniqueOverlapScore(getProductTags(product), getProductTags(candidate), 2),
+  ].reduce((total, score) => total + score, 0);
+}
+
+function readRecentlyViewedProductIds() {
+  try {
+    return JSON.parse(window.localStorage.getItem(recentlyViewedStorageKey) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
 
 export function ProductPage() {
   const { slug } = useParams();
@@ -20,14 +47,27 @@ export function ProductPage() {
   const [productError, setProductError] = useState<string | null>(null);
   const product = apiProduct ?? fallbackProduct;
   const [selectedColor, setSelectedColor] = useState(product?.colors[0] ?? "Default");
-  const fallbackImage = "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=1000&q=85";
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => readRecentlyViewedProductIds());
+  const productImages = product?.images.length ? product.images : [fallbackImage];
+  const selectedImage = productImages[selectedImageIndex] ?? productImages[0] ?? fallbackImage;
   const pairings = useMemo(() => {
     if (!product) return [];
     return products
-      .filter((item) => item.id !== product.id && item.collection === product.collection)
-      .concat(products.filter((item) => item.id !== product.id))
+      .filter((item) => item.id !== product.id)
+      .map((item) => ({ item, score: relatedProductScore(product, item) }))
+      .sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name))
+      .map(({ item }) => item)
       .slice(0, 3);
   }, [product, products]);
+  const recentlyViewedProducts = useMemo(() => {
+    if (!product) return [];
+    return recentlyViewedIds
+      .map((productId) => products.find((item) => item.id === productId))
+      .filter((item): item is Product => item !== undefined && item.id !== product.id)
+      .slice(0, 4);
+  }, [product, products, recentlyViewedIds]);
 
   useEffect(() => {
     if (!slug) return;
@@ -59,7 +99,46 @@ export function ProductPage() {
 
   useEffect(() => {
     setSelectedColor(product?.colors[0] ?? "Default");
+    setSelectedImageIndex(0);
+    setIsGalleryOpen(false);
   }, [product?.id, product?.colors]);
+
+  useEffect(() => {
+    if (selectedImageIndex >= productImages.length) {
+      setSelectedImageIndex(0);
+    }
+  }, [productImages.length, selectedImageIndex]);
+
+  useEffect(() => {
+    if (!product) return;
+
+    setRecentlyViewedIds((currentIds) => {
+      const nextIds = [product.id, ...currentIds.filter((productId) => productId !== product.id)].slice(0, 8);
+      window.localStorage.setItem(recentlyViewedStorageKey, JSON.stringify(nextIds));
+      return nextIds;
+    });
+  }, [product]);
+
+  useEffect(() => {
+    if (!isGalleryOpen) return undefined;
+
+    function onGalleryKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsGalleryOpen(false);
+      }
+
+      if (event.key === "ArrowRight") {
+        setSelectedImageIndex((index) => (index + 1) % productImages.length);
+      }
+
+      if (event.key === "ArrowLeft") {
+        setSelectedImageIndex((index) => (index - 1 + productImages.length) % productImages.length);
+      }
+    }
+
+    window.addEventListener("keydown", onGalleryKeyDown);
+    return () => window.removeEventListener("keydown", onGalleryKeyDown);
+  }, [isGalleryOpen, productImages.length]);
 
   if (!product) {
     return (
@@ -87,25 +166,43 @@ export function ProductPage() {
       </nav>
 
       <section className="product-detail">
-        <div className="product-gallery">
-          <img
-            className="main-product-image"
-            src={product.images[0]}
-            alt={product.name}
-            onError={(event) => {
-              event.currentTarget.src = fallbackImage;
-            }}
-          />
-          {product.images.map((image) => (
+        <div className="product-gallery" aria-label={`${product.name} image gallery`}>
+          <button
+            className="main-product-image-button"
+            type="button"
+            title="View larger"
+            onClick={() => setIsGalleryOpen(true)}
+            aria-label={`Open ${product.name} image gallery`}
+          >
             <img
-              key={image}
-              src={image}
-              alt={`${product.name} detail`}
+              className="main-product-image"
+              src={selectedImage}
+              alt={product.name}
               onError={(event) => {
                 event.currentTarget.src = fallbackImage;
               }}
             />
-          ))}
+            <span className="gallery-zoom-icon" aria-hidden="true"><Maximize2 size={18} /></span>
+          </button>
+          <div className="product-thumbnails" aria-label="Select product image">
+            {productImages.map((image, index) => (
+              <button
+                key={`${image}-${index}`}
+                type="button"
+                aria-label={`Show ${product.name} image ${index + 1}`}
+                aria-pressed={selectedImageIndex === index}
+                onClick={() => setSelectedImageIndex(index)}
+              >
+                <img
+                  src={image}
+                  alt=""
+                  onError={(event) => {
+                    event.currentTarget.src = fallbackImage;
+                  }}
+                />
+              </button>
+            ))}
+          </div>
         </div>
         <div className="product-info-panel">
           <p className="microcopy">{product.collection}</p>
@@ -192,6 +289,47 @@ export function ProductPage() {
           {pairings.map((item) => <ProductCard key={item.id} product={item} />)}
         </div>
       </section>
+
+      {recentlyViewedProducts.length > 0 && (
+        <section className="section-pad recently-viewed-section">
+          <h2>Recently Viewed</h2>
+          <div className="product-grid">
+            {recentlyViewedProducts.map((item) => <ProductCard key={item.id} product={item} />)}
+          </div>
+        </section>
+      )}
+
+      {isGalleryOpen && (
+        <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image gallery`}>
+          <button className="gallery-close" type="button" onClick={() => setIsGalleryOpen(false)} aria-label="Close gallery">
+            <X size={22} />
+          </button>
+          <button
+            className="gallery-nav gallery-nav-prev"
+            type="button"
+            onClick={() => setSelectedImageIndex((index) => (index - 1 + productImages.length) % productImages.length)}
+            aria-label="Previous image"
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <img
+            src={selectedImage}
+            alt={`${product.name} large view`}
+            onError={(event) => {
+              event.currentTarget.src = fallbackImage;
+            }}
+          />
+          <button
+            className="gallery-nav gallery-nav-next"
+            type="button"
+            onClick={() => setSelectedImageIndex((index) => (index + 1) % productImages.length)}
+            aria-label="Next image"
+          >
+            <ArrowRight size={22} />
+          </button>
+          <p>{selectedImageIndex + 1} / {productImages.length}</p>
+        </div>
+      )}
     </div>
   );
 }
