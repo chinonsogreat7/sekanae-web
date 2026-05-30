@@ -129,6 +129,14 @@ type BulkProductImportRow = {
   errors: string[];
 };
 
+type BulkProductImportHistoryItem = {
+  id: string;
+  importedCount: number;
+  failedCount: number;
+  createdAt: string;
+  summary: string;
+};
+
 type Address = {
   line1: string;
   line2?: string;
@@ -813,11 +821,18 @@ export function AdminPage() {
   const [bulkProductRows, setBulkProductRows] = useState<BulkProductImportRow[]>([]);
   const [bulkProductImages, setBulkProductImages] = useState<File[]>([]);
   const [bulkProductMessage, setBulkProductMessage] = useState<string | null>(null);
+  const [bulkProductHistory, setBulkProductHistory] = useState<BulkProductImportHistoryItem[]>([]);
   const [isBulkImportingProducts, setIsBulkImportingProducts] = useState(false);
   const [customProductTag, setCustomProductTag] = useState("");
   const [customProductTagError, setCustomProductTagError] = useState<string | null>(null);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
   const [productPage, setProductPage] = useState(1);
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [productStockFilter, setProductStockFilter] = useState<"" | "low" | "out">("");
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [bulkAction, setBulkAction] = useState<"" | "category" | "collection" | "stock" | "new" | "bridal" | "archive">("");
+  const [bulkActionValue, setBulkActionValue] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersTotal, setOrdersTotal] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -869,12 +884,42 @@ export function AdminPage() {
     return adminProducts.find((product) => product.id === routeProductId || product.slug === routeProductId);
   }, [adminProducts, routeProductId]);
 
-  const productPageCount = Math.max(1, Math.ceil(adminProducts.length / productsPerPage));
+  const filteredProducts = useMemo(() => {
+    const search = productSearch.trim().toLowerCase();
+
+    return adminProducts.filter((product) => {
+      const matchesSearch = !search || [
+        product.name,
+        product.category,
+        product.collection,
+        product.material,
+        product.description,
+        productTags(product).join(" "),
+      ].some((value) => value.toLowerCase().includes(search));
+      const matchesCategory = !productCategoryFilter || product.category === productCategoryFilter;
+      const matchesStock = productStockFilter === "low"
+        ? product.stock > 0 && product.stock <= 5
+        : productStockFilter === "out"
+          ? product.stock === 0
+          : true;
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [adminProducts, productCategoryFilter, productSearch, productStockFilter]);
+  const productPageCount = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
   const customerPageCount = Math.max(1, Math.ceil(customersTotal / productsPerPage));
   const visibleProducts = useMemo(() => {
     const firstProduct = (productPage - 1) * productsPerPage;
-    return adminProducts.slice(firstProduct, firstProduct + productsPerPage);
-  }, [adminProducts, productPage]);
+    return filteredProducts.slice(firstProduct, firstProduct + productsPerPage);
+  }, [filteredProducts, productPage]);
+  const selectedProducts = useMemo(
+    () => adminProducts.filter((product) => selectedProductIds.includes(product.id)),
+    [adminProducts, selectedProductIds],
+  );
+  const lowStockProducts = useMemo(
+    () => adminProducts.filter((product) => product.stock > 0 && product.stock <= 5),
+    [adminProducts],
+  );
   const categoryOptions = useMemo(
     () => [...new Set([
       ...fallbackCategories,
@@ -960,6 +1005,10 @@ export function AdminPage() {
       setProductPage(productPageCount);
     }
   }, [productPage, productPageCount]);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [productCategoryFilter, productSearch, productStockFilter]);
 
   useEffect(() => {
     if (customerPage > customerPageCount) {
@@ -1366,10 +1415,22 @@ export function AdminPage() {
       await readDashboard();
       await readAudit();
 
-      setBulkProductMessage([
+      const summary = [
         `${importedCount} product${importedCount === 1 ? "" : "s"} imported.`,
         failedRows.length ? `${failedRows.length} failed: ${failedRows.join(" ")}` : "",
-      ].filter(Boolean).join(" "));
+      ].filter(Boolean).join(" ");
+
+      setBulkProductHistory((current) => [
+        {
+          id: `${Date.now()}`,
+          importedCount,
+          failedCount: failedRows.length,
+          createdAt: new Date().toISOString(),
+          summary,
+        },
+        ...current,
+      ].slice(0, 5));
+      setBulkProductMessage(summary);
     } finally {
       setIsBulkImportingProducts(false);
     }
@@ -1430,6 +1491,115 @@ export function AdminPage() {
     } catch (error) {
       setProductMessage(error instanceof Error ? error.message : "Product archive failed.");
     }
+  }
+
+  function toggleProductSelection(productId: string) {
+    setSelectedProductIds((current) => (
+      current.includes(productId)
+        ? current.filter((selectedId) => selectedId !== productId)
+        : [...current, productId]
+    ));
+  }
+
+  function toggleVisibleProductSelection() {
+    const visibleIds = visibleProducts.map((product) => product.id);
+    const allVisibleSelected = visibleIds.every((productId) => selectedProductIds.includes(productId));
+
+    setSelectedProductIds((current) => {
+      if (allVisibleSelected) {
+        return current.filter((productId) => !visibleIds.includes(productId));
+      }
+
+      return [...new Set([...current, ...visibleIds])];
+    });
+  }
+
+  async function runBulkProductAction() {
+    if (!selectedProducts.length) {
+      setProductMessage("Select products before running a bulk action.");
+      return;
+    }
+
+    if (!bulkAction) {
+      setProductMessage("Choose a bulk action first.");
+      return;
+    }
+
+    if (bulkAction === "archive" && !window.confirm(`Archive ${selectedProducts.length} selected product${selectedProducts.length === 1 ? "" : "s"}?`)) {
+      return;
+    }
+
+    setProductMessage(`Running bulk action for ${selectedProducts.length} product${selectedProducts.length === 1 ? "" : "s"}...`);
+
+    const failures: string[] = [];
+
+    for (const product of selectedProducts) {
+      try {
+        if (bulkAction === "archive") {
+          await readAdmin<{ archived: boolean }>(`/api/admin/products/${encodeURIComponent(product.id)}`, {
+            method: "DELETE",
+          });
+          continue;
+        }
+
+        if (bulkAction === "stock") {
+          const quantity = Number(bulkActionValue);
+
+          if (!Number.isInteger(quantity) || quantity < 0) {
+            throw new Error("Stock must be a non-negative whole number.");
+          }
+
+          await readAdmin<Product>(`/api/admin/products/${encodeURIComponent(product.id)}/inventory`, {
+            method: "PATCH",
+            body: JSON.stringify({ quantity }),
+          });
+          continue;
+        }
+
+        const nextTags = productTags(product);
+        const patch = {
+          ...product,
+          tags: nextTags,
+        };
+
+        if (bulkAction === "category") {
+          patch.category = bulkActionValue.trim();
+        }
+
+        if (bulkAction === "collection") {
+          patch.collection = bulkActionValue.trim();
+        }
+
+        if (bulkAction === "new") {
+          patch.isNew = true;
+          patch.tags = [...new Set([...nextTags, "New arrival"])];
+        }
+
+        if (bulkAction === "bridal") {
+          patch.isBridalPreview = true;
+          patch.tags = [...new Set([...nextTags, "Bridal preview"])];
+        }
+
+        if ((bulkAction === "category" || bulkAction === "collection") && !bulkActionValue.trim()) {
+          throw new Error("Enter a value for this bulk action.");
+        }
+
+        await readAdmin<Product>("/api/admin/products", {
+          method: "POST",
+          body: JSON.stringify(patch),
+        });
+      } catch (error) {
+        failures.push(`${product.name}: ${error instanceof Error ? error.message : "Update failed."}`);
+      }
+    }
+
+    await readProducts();
+    await readDashboard();
+    await readAudit();
+    setSelectedProductIds([]);
+    setProductMessage(failures.length
+      ? `Bulk action finished with ${failures.length} failure${failures.length === 1 ? "" : "s"}: ${failures.join(" ")}`
+      : `Bulk action completed for ${selectedProducts.length} product${selectedProducts.length === 1 ? "" : "s"}.`);
   }
 
   function updateProductName(value: string) {
@@ -2227,12 +2397,99 @@ export function AdminPage() {
             <div>
               <h2>Product Catalog</h2>
               <p className="admin-status admin-status-tight">
-                Showing {visibleProducts.length} of {adminProducts.length} products
+                Showing {visibleProducts.length} of {filteredProducts.length} matching products
               </p>
             </div>
             <Link className="admin-button-link" to={`${adminBase}/products/new`}>
               <PackagePlus size={16} /> New product
             </Link>
+          </div>
+          {lowStockProducts.length > 0 && (
+            <div className="admin-low-stock-alert">
+              <strong>{lowStockProducts.length} low-stock product{lowStockProducts.length === 1 ? "" : "s"}</strong>
+              <span>{lowStockProducts.slice(0, 4).map((product) => `${product.name} (${product.stock})`).join(", ")}</span>
+              <button type="button" onClick={() => setProductStockFilter("low")}>Review</button>
+            </div>
+          )}
+          <div className="admin-product-tools">
+            <label>
+              Search products
+              <input
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Search name, material, tag..."
+              />
+            </label>
+            <CustomSelect
+              label="Category"
+              className="admin-custom-select admin-form-select"
+              value={productCategoryFilter}
+              onChange={setProductCategoryFilter}
+              options={[{ label: "All categories", value: "" }, ...categoryOptions.map((category) => ({ label: category, value: category }))]}
+            />
+            <CustomSelect
+              label="Stock"
+              className="admin-custom-select admin-form-select"
+              value={productStockFilter}
+              onChange={(value) => setProductStockFilter(value as "" | "low" | "out")}
+              options={[
+                { label: "All stock", value: "" },
+                { label: "Low stock", value: "low" },
+                { label: "Out of stock", value: "out" },
+              ]}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setProductSearch("");
+                setProductCategoryFilter("");
+                setProductStockFilter("");
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+          <div className="admin-bulk-actions-panel">
+            <div>
+              <strong>{selectedProductIds.length} selected</strong>
+              <button type="button" onClick={toggleVisibleProductSelection}>
+                {visibleProducts.length && visibleProducts.every((product) => selectedProductIds.includes(product.id)) ? "Unselect page" : "Select page"}
+              </button>
+              <button type="button" onClick={() => setSelectedProductIds([])} disabled={!selectedProductIds.length}>Clear</button>
+            </div>
+            <CustomSelect
+              label="Bulk action"
+              className="admin-custom-select admin-form-select"
+              value={bulkAction}
+              onChange={(value) => {
+                setBulkAction(value as typeof bulkAction);
+                setBulkActionValue("");
+              }}
+              options={[
+                { label: "Choose action", value: "" },
+                { label: "Change category", value: "category" },
+                { label: "Change collection", value: "collection" },
+                { label: "Set stock", value: "stock" },
+                { label: "Mark new arrival", value: "new" },
+                { label: "Mark bridal preview", value: "bridal" },
+                { label: "Archive selected", value: "archive" },
+              ]}
+            />
+            {(bulkAction === "category" || bulkAction === "collection" || bulkAction === "stock") && (
+              <label>
+                Value
+                <input
+                  type={bulkAction === "stock" ? "number" : "text"}
+                  min={bulkAction === "stock" ? 0 : undefined}
+                  value={bulkActionValue}
+                  onChange={(event) => setBulkActionValue(event.target.value)}
+                  placeholder={bulkAction === "category" ? "Jewelry" : bulkAction === "collection" ? "Everyday Elegance" : "0"}
+                />
+              </label>
+            )}
+            <button type="button" onClick={runBulkProductAction} disabled={!selectedProductIds.length || !bulkAction}>
+              Apply
+            </button>
           </div>
           <div className="admin-bulk-upload">
             <div>
@@ -2287,17 +2544,35 @@ export function AdminPage() {
               </div>
             )}
             {bulkProductMessage && <p className="admin-status admin-status-tight">{bulkProductMessage}</p>}
+            {bulkProductHistory.length > 0 && (
+              <div className="admin-bulk-history">
+                <strong>Recent imports</strong>
+                {bulkProductHistory.map((item) => (
+                  <span key={item.id}>
+                    {formatDate(item.createdAt)}: {item.importedCount} imported, {item.failedCount} failed
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="admin-table admin-product-table">
             <div className="admin-table-head">
-              <span>Product</span><span>Category</span><span>Inventory</span><span>Actions</span>
+              <span>Select</span><span>Product</span><span>Category</span><span>Inventory</span><span>Actions</span>
             </div>
             {visibleProducts.map((product) => (
               <div className="admin-row" key={product.id}>
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={selectedProductIds.includes(product.id)}
+                    onChange={() => toggleProductSelection(product.id)}
+                    aria-label={`Select ${product.name}`}
+                  />
+                </span>
                 <Link to={`${adminBase}/products/${encodeURIComponent(product.id)}`}>
                   <img src={product.images[0]} alt="" /> {product.name}
                 </Link>
-                <span>{product.category}</span>
+                <span>{product.category}{product.stock > 0 && product.stock <= 5 ? <small>Low stock</small> : null}</span>
                 <span className="admin-stock-control">
                   <input
                     type="number"

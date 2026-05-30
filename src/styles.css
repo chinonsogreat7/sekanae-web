@@ -2555,6 +2555,90 @@ p {
   font-size: 0.78rem;
 }
 
+.admin-bulk-history {
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.admin-bulk-history strong {
+  color: var(--ink);
+  font-size: 0.7rem;
+}
+
+.admin-product-tools,
+.admin-bulk-actions-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.5fr) minmax(160px, 0.45fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.admin-product-tools label,
+.admin-bulk-actions-panel label {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-product-tools input,
+.admin-bulk-actions-panel input {
+  min-height: 42px;
+  border: 1px solid rgba(35, 28, 24, 0.54);
+  padding: 0 10px;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.admin-bulk-actions-panel {
+  grid-template-columns: minmax(170px, 0.5fr) minmax(190px, 0.45fr) minmax(180px, 0.5fr) auto;
+  background: #faf8f4;
+}
+
+.admin-bulk-actions-panel > div {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-bulk-actions-panel strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+}
+
+.admin-low-stock-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(169, 119, 45, 0.34);
+  background: rgba(169, 119, 45, 0.08);
+  color: var(--espresso);
+}
+
+.admin-low-stock-alert strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-low-stock-alert span {
+  flex: 1;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .admin-table,
 .order-list,
 .market-list,
@@ -2881,8 +2965,18 @@ p {
 
 .admin-product-table .admin-table-head,
 .admin-product-table .admin-row {
-  grid-template-columns: minmax(360px, 1.4fr) minmax(170px, 0.5fr) minmax(270px, 0.55fr) minmax(390px, 0.7fr);
+  grid-template-columns: 74px minmax(320px, 1.3fr) minmax(160px, 0.5fr) minmax(270px, 0.55fr) minmax(390px, 0.7fr);
   gap: 18px;
+}
+
+.admin-product-table .admin-row > span:first-child {
+  justify-content: center;
+}
+
+.admin-product-table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--black);
 }
 
 .admin-customer-table .admin-table-head,
