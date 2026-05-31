@@ -74,3 +74,34 @@ services:
         value: "true"
       - key: WEB_ORIGIN
         value: https://sekanae.co
+
+  - type: cron
+    name: sekanae-cart-reminders
+    runtime: node
+    branch: main
+    schedule: "0 * * * *"
+    buildCommand: npm ci --include=dev && npm run api:build
+    startCommand: npm run api:cart-reminders
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: API_PUBLIC_URL
+        value: https://sekanae-api.onrender.com
+      - key: WEB_ORIGIN
+        value: https://sekanae.co
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: DEFAULT_CURRENCY
+        value: EUR
+      - key: DEFAULT_MARKET_COUNTRY
+        value: MT
+      - key: DEFAULT_SHIPPING_AMOUNT
+        value: "0"
+      - key: VAT_RATE
+        value: "0.18"
+      - key: VAT_INCLUDED
+        value: "true"

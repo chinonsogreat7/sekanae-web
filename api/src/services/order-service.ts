@@ -6,6 +6,7 @@ import {
   listOrdersFromDatabase,
   updateOrderInDatabase,
 } from "../repositories/order-repository.js";
+import { markCustomerCartConvertedInDatabase } from "../repositories/customer-cart-repository.js";
 import { validateCart, type CartValidationInput, type ValidatedCartItem } from "./cart-service.js";
 import { sendOrderCreatedEmails } from "./email-service.js";
 import { subscribeToNewsletter } from "./newsletter-service.js";
@@ -146,6 +147,7 @@ export async function createOrder(request: CreateOrderRequest): Promise<Order> {
     items: cart.items,
   });
 
+  await markCustomerCartConvertedInDatabase(request.customer.email);
   await sendOrderCreatedEmails(order);
 
   if (request.marketingOptIn) {

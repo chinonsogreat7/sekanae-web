@@ -13,9 +13,11 @@
     "api:build": "tsc -p tsconfig.api.json",
     "api:start": "node api/dist/api/src/index.js",
     "api:start:migrated": "node api/dist/api/scripts/migrate.js && node api/dist/api/scripts/seed-catalog.js && npm run api:start",
+    "api:cart-reminders": "node api/dist/api/scripts/send-abandoned-cart-reminders.js",
     "admin:password-hash": "tsx api/scripts/admin-password-hash.ts",
     "db:migrate": "tsx api/scripts/migrate.ts",
     "db:seed": "tsx api/scripts/seed-catalog.ts",
+    "cart:reminders": "tsx api/scripts/send-abandoned-cart-reminders.ts",
     "smoke": "tsx api/scripts/smoke.ts",
     "typecheck": "tsc -b && tsc -p tsconfig.api.json --noEmit"
   },

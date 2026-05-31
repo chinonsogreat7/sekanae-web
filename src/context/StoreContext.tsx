@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   requestCustomerCode,
   signOutCustomerSession,
   validateCustomerSession,
   verifyCustomerCode,
 } from "../api/customerAuth";
+import { clearCustomerCart, getCustomerCart, replaceCustomerCart } from "../api/customerCart";
 import { getCustomerWishlist, replaceCustomerWishlist } from "../api/customerWishlist";
 import { getApiBaseUrl } from "../api/config";
 import { products, type CurrencyCode, type Product } from "../data/catalog";
@@ -20,6 +21,42 @@ const codePattern = /^\d{6}$/;
 
 function sameStringList(left: string[], right: string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function cartItemKey(item: CartItem) {
+  return `${item.productId}::${item.color}`;
+}
+
+function sameCartItems(left: CartItem[], right: CartItem[]) {
+  const leftSorted = [...left].sort((a, b) => cartItemKey(a).localeCompare(cartItemKey(b)));
+  const rightSorted = [...right].sort((a, b) => cartItemKey(a).localeCompare(cartItemKey(b)));
+
+  return leftSorted.length === rightSorted.length && leftSorted.every((item, index) => {
+    const other = rightSorted[index];
+    return item.productId === other.productId
+      && item.color === other.color
+      && item.quantity === other.quantity
+      && item.giftWrap === other.giftWrap;
+  });
+}
+
+function mergeCartItems(savedItems: CartItem[], localItems: CartItem[]) {
+  const merged = new Map<string, CartItem>();
+
+  for (const item of [...savedItems, ...localItems]) {
+    const key = cartItemKey(item);
+    const current = merged.get(key);
+
+    merged.set(key, current
+      ? {
+          ...current,
+          quantity: Math.min(99, Math.max(current.quantity, item.quantity)),
+          giftWrap: current.giftWrap || item.giftWrap,
+        }
+      : item);
+  }
+
+  return [...merged.values()];
 }
 
 function readStorage<TValue>(key: string, fallback: TValue): TValue {
@@ -66,6 +103,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [accountFormHelp, setAccountFormHelp] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   const [accountNotice, setAccountNotice] = useState<AccountNotice | null>(null);
+  const hydratedCartForEmailRef = useRef<string | null>(null);
   const customerEmail = customerAccount?.email;
 
   function showAccountError(message: string) {
@@ -157,6 +195,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!customerToken || !customerEmail) {
+      hydratedCartForEmailRef.current = null;
       return undefined;
     }
 
@@ -189,6 +228,54 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       isCurrent = false;
     };
   }, [customerEmail, customerToken]);
+
+  useEffect(() => {
+    if (!customerToken || !customerEmail) {
+      hydratedCartForEmailRef.current = null;
+      return undefined;
+    }
+
+    if (hydratedCartForEmailRef.current === customerEmail) {
+      return undefined;
+    }
+
+    let isCurrent = true;
+
+    getCustomerCart(customerToken)
+      .then((payload) => {
+        if (!isCurrent) return;
+
+        if (payload.items.length > 0) {
+          setCurrency(payload.currency);
+        }
+
+        setCartItems((items) => {
+          const mergedCart = mergeCartItems(payload.items, items);
+          return sameCartItems(mergedCart, items) ? items : mergedCart;
+        });
+        hydratedCartForEmailRef.current = customerEmail;
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        hydratedCartForEmailRef.current = customerEmail;
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [customerEmail, customerToken]);
+
+  useEffect(() => {
+    if (!customerToken || !customerEmail || hydratedCartForEmailRef.current !== customerEmail) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void replaceCustomerCart(customerToken, currency, cartItems).catch(() => undefined);
+    }, 800);
+
+    return () => window.clearTimeout(timeout);
+  }, [cartItems, currency, customerEmail, customerToken]);
 
   useEffect(() => {
     if (!accountNotice) {
@@ -328,6 +415,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function clearCart() {
     setCartItems([]);
+    if (customerToken) {
+      void clearCustomerCart(customerToken).catch(() => undefined);
+    }
   }
 
   function openAccountPrompt(reason = "Create an account to continue.", mode: AccountPromptMode = "create") {
