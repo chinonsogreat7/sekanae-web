@@ -8,6 +8,10 @@ import { formatCurrencyAmount } from "../utils/money";
 
 const pendingCheckoutStorageKey = "sekanae_pending_checkout";
 
+function labelize(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 type PendingCheckout = {
   orderId: string;
   email: string;
@@ -105,7 +109,7 @@ export function CheckoutSuccessPage() {
             </div>
             <div>
               <dt>Payment</dt>
-              <dd>{order.paymentStatus.replace("_", " ")}</dd>
+              <dd>{labelize(order.paymentStatus)}</dd>
             </div>
           </dl>
         )}

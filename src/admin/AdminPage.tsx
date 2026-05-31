@@ -506,6 +506,10 @@ function labelize(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function labelOptions<TValue extends string>(values: readonly TValue[]) {
+  return values.map((value) => ({ label: labelize(value), value }));
+}
+
 function toDateTimeInputValue(value?: string) {
   if (!value) return "";
   const date = new Date(value);
@@ -2370,7 +2374,7 @@ export function AdminPage() {
                     <small>{order.customerEmail}</small>
                   </span>
                   <span>{formatCurrencyAmount(order.total, order.currency)}</span>
-                  <em>{order.status}</em>
+                  <em>{labelize(order.status)}</em>
                 </button>
               ))}
               {!dashboardData?.recentOrders.length && <p className="admin-empty">No orders yet.</p>}
@@ -3011,7 +3015,7 @@ export function AdminPage() {
               onChange={(value) => setOrderStatusFilter(value as "" | OrderStatus)}
               options={[
                 { label: "All", value: "" },
-                ...orderStatuses.map((status) => ({ label: status, value: status })),
+                ...labelOptions(orderStatuses),
               ]}
             />
             <label>
@@ -3032,7 +3036,7 @@ export function AdminPage() {
                 <strong>{order.id.slice(0, 8)}</strong>
                 <span>{order.customer.name}</span>
                 <span>{formatCurrencyAmount(order.total, order.currency)}</span>
-                <em>{order.status}</em>
+                <em>{labelize(order.status)}</em>
                 <button type="button" onClick={() => readOrderDetail(order.id)}>Open</button>
               </div>
             ))}
@@ -3066,14 +3070,14 @@ export function AdminPage() {
                   className="admin-custom-select"
                   value={orderStatus}
                   onChange={(value) => setOrderStatus(value as OrderStatus)}
-                  options={orderStatuses.map((status) => ({ label: status, value: status }))}
+                  options={labelOptions(orderStatuses)}
                 />
                 <CustomSelect
                   label="Payment"
                   className="admin-custom-select"
                   value={paymentStatus}
                   onChange={(value) => setPaymentStatus(value as PaymentStatus)}
-                  options={paymentStatuses.map((status) => ({ label: status, value: status }))}
+                  options={labelOptions(paymentStatuses)}
                 />
                 <label className="admin-field-wide">
                   Notes
@@ -3209,7 +3213,7 @@ export function AdminPage() {
                 <strong>{order.id.slice(0, 8)}</strong>
                 <span>{formatDate(order.createdAt)}</span>
                 <span>{formatCurrencyAmount(order.total, order.currency)}</span>
-                <em>{order.status}</em>
+                <em>{labelize(order.status)}</em>
                 <button type="button" onClick={() => {
                   setSelectedOrder(order);
                   setOrderStatus(order.status);
@@ -3570,7 +3574,7 @@ export function AdminPage() {
               onChange={(value) => setConciergeFilter(value as "" | ConciergeStatus)}
               options={[
                 { label: "All", value: "" },
-                ...conciergeStatuses.map((status) => ({ label: status, value: status })),
+                ...labelOptions(conciergeStatuses),
               ]}
             />
             <button type="submit">Apply</button>
@@ -3592,14 +3596,14 @@ export function AdminPage() {
                   className="admin-custom-select"
                   value={request.status}
                   onChange={(value) => updateConciergeRequest(request.id, { status: value as ConciergeStatus })}
-                  options={conciergeStatuses.map((status) => ({ label: status, value: status }))}
+                  options={labelOptions(conciergeStatuses)}
                 />
                 <CustomSelect
                   label="Reply"
                   className="admin-custom-select"
                   value={request.replyStatus}
                   onChange={(value) => updateConciergeRequest(request.id, { replyStatus: value as ReplyStatus })}
-                  options={replyStatuses.map((status) => ({ label: status, value: status }))}
+                  options={labelOptions(replyStatuses)}
                 />
                 <label className="admin-field-wide">
                   Internal notes
