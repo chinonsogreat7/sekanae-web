@@ -2237,6 +2237,25 @@ p {
   border-color: rgba(169, 119, 45, 0.48);
 }
 
+.checkout-section-heading {
+  margin: 0 0 18px;
+}
+
+.checkout-section-heading h2 {
+  margin-bottom: 6px;
+}
+
+.checkout-section-heading p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.checkout-locked-input {
+  color: var(--muted);
+  background: rgba(246, 243, 238, 0.72);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

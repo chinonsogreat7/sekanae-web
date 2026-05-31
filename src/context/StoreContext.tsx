@@ -229,6 +229,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   function addToCart(productId: string, color?: string) {
+    const product = products.find((candidate) => candidate.id === productId);
     const selectedColor = getDefaultColor(productId, color);
     setCartItems((items) => {
       const existing = items.find((item) => item.productId === productId && item.color === selectedColor);
@@ -241,12 +242,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       return [...items, { productId, color: selectedColor, quantity: 1, giftWrap: false }];
     });
+    setAccountNotice({
+      message: "Added to cart.",
+      detail: product ? `${product.name} is now in your cart.` : "Your cart has been updated.",
+    });
   }
 
   function removeFromCart(productId: string, color?: string) {
+    const product = products.find((candidate) => candidate.id === productId);
     setCartItems((items) =>
       items.filter((item) => !(item.productId === productId && (!color || item.color === color)))
     );
+    setAccountNotice({
+      message: "Removed from cart.",
+      detail: product ? `${product.name} was removed from your cart.` : "Your cart has been updated.",
+    });
   }
 
   function updateQuantity(productId: string, quantity: number, color?: string) {
@@ -297,11 +307,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
 
     setWishlist((items) => {
-      const nextWishlist = items.includes(productId)
-        ? items.filter((item) => item !== productId)
-        : [...items, productId];
+      const isSaved = items.includes(productId);
+      const nextWishlist = isSaved ? items.filter((item) => item !== productId) : [...items, productId];
+      const product = products.find((candidate) => candidate.id === productId);
 
       persistCustomerWishlist(nextWishlist);
+      setAccountNotice({
+        message: isSaved ? "Removed from wishlist." : "Added to wishlist.",
+        detail: product
+          ? `${product.name} ${isSaved ? "was removed from" : "is now in"} your wishlist.`
+          : `Your wishlist has been ${isSaved ? "updated" : "saved"}.`,
+      });
       return nextWishlist;
     });
   }

@@ -43,6 +43,7 @@ export type CreateCheckoutOrderInput = {
   customer: {
     email: string;
     name: string;
+    phone?: string;
   };
   shippingAddress: CheckoutAddress;
   billingAddress?: CheckoutAddress;

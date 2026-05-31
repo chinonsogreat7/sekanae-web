@@ -64,7 +64,8 @@ export function CheckoutPage() {
       const formData = new FormData(event.currentTarget);
       const firstName = readFormValue(formData, "firstName");
       const lastName = readFormValue(formData, "lastName");
-      const email = readFormValue(formData, "email").toLowerCase();
+      const email = customerAccount.email.toLowerCase();
+      const phone = readFormValue(formData, "phone");
       const giftWrapItems = cartProducts
         .filter((item) => item.giftWrap)
         .map((item) => `${item.product.name} (${item.color})`);
@@ -77,6 +78,7 @@ export function CheckoutPage() {
         customer: {
           email,
           name: `${firstName} ${lastName}`.trim(),
+          ...(phone ? { phone } : {}),
         },
         shippingAddress: buildCheckoutAddress(formData),
         billingAddress: buildCheckoutAddress(formData),
@@ -119,7 +121,7 @@ export function CheckoutPage() {
           <div className="checkout-assurance">
             <span><LockKeyhole size={16} /> Encrypted payment</span>
             <span><Truck size={16} /> International shipping</span>
-            <span><CreditCard size={16} /> Card, PayPal, and bank options</span>
+            <span><CreditCard size={16} /> Secure Stripe checkout</span>
           </div>
           {!hasCartItems ? (
             <div className="empty-state checkout-gate">
@@ -149,8 +151,23 @@ export function CheckoutPage() {
                 Switch account
               </button>
             </div>
+            <div className="checkout-section-heading">
+              <h2>Delivery details</h2>
+              <p>We use these details for shipping and order updates before handing payment to Stripe.</p>
+            </div>
             <div className="form-grid">
-              <label>Email<input type="email" name="email" required placeholder="you@example.com" defaultValue={customerAccount.email} autoComplete="email" /></label>
+              <label>
+                Account email
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={customerAccount.email}
+                  autoComplete="email"
+                  readOnly
+                  className="checkout-locked-input"
+                />
+              </label>
               <CustomSelect
                 label="Country / Region"
                 name="country"
@@ -166,6 +183,7 @@ export function CheckoutPage() {
               />
               <label>First name<input name="firstName" required defaultValue={customerAccount.firstName} autoComplete="given-name" /></label>
               <label>Last name<input name="lastName" required defaultValue={customerAccount.lastName} autoComplete="family-name" /></label>
+              <label>Phone<input name="phone" type="tel" autoComplete="tel" placeholder="For delivery updates" /></label>
               <label className="wide">Address<input name="addressLine1" required autoComplete="address-line1" /></label>
               <label className="wide">Apartment, suite, or delivery note<input name="addressLine2" autoComplete="address-line2" /></label>
               <label>City<input name="city" required autoComplete="address-level2" /></label>
