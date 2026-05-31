@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { type Product } from "../data/catalog";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 import { formatMoney } from "../utils/money";
 
 type QuickViewProps = {

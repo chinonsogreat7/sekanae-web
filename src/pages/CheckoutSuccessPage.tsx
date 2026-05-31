@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { getCheckoutOrder, type CheckoutOrder } from "../api/orders";
 import { PageMeta } from "../components/PageMeta";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 import { formatCurrencyAmount } from "../utils/money";
 
 const pendingCheckoutStorageKey = "sekanae_pending_checkout";

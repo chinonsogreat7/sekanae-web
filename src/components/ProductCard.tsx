@@ -2,7 +2,7 @@ import { Eye, Heart, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { type Product } from "../data/catalog";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 import { formatMoney } from "../utils/money";
 import { getProductTags, getSwatchClassName, getSwatchStyle } from "../utils/product-display";
 

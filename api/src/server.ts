@@ -20,6 +20,7 @@ import { registerCartRoutes } from "./routes/cart.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerConciergeRoutes } from "./routes/concierge.js";
 import { registerCustomerAuthRoutes } from "./routes/customer-auth.js";
+import { registerCustomerWishlistRoutes } from "./routes/customer-wishlist.js";
 import { registerNewsletterRoutes } from "./routes/newsletter.js";
 import { registerOrderRoutes } from "./routes/orders.js";
 import { registerPaymentRoutes } from "./routes/payments.js";
@@ -129,6 +130,7 @@ export async function buildServer() {
   await app.register(registerNewsletterRoutes, { prefix: "/api" });
   await app.register(registerConciergeRoutes, { prefix: "/api" });
   await app.register(registerCustomerAuthRoutes, { prefix: "/api" });
+  await app.register(registerCustomerWishlistRoutes, { prefix: "/api" });
   await app.register(registerPaymentRoutes, { prefix: "/api" });
   await app.register(registerStripeWebhookRoutes, { prefix: "/api" });
   await app.register(registerAdminAuthRoutes, { prefix: "/api" });

@@ -1275,7 +1275,86 @@ p {
 }
 
 .filter-panel input[type="range"] {
+  width: 100%;
   accent-color: var(--gold);
+}
+
+.filter-search span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 0 10px;
+}
+
+.filter-search svg {
+  flex: 0 0 auto;
+  color: var(--gold);
+}
+
+.filter-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding-inline: 0;
+}
+
+.active-filter-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+
+.active-filter-list button {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(169, 119, 45, 0.32);
+  background: rgba(169, 119, 45, 0.08);
+  color: var(--espresso);
+  padding: 0 9px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.filter-reset {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--black);
+  background: var(--black);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.filter-reset:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.shop-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.shop-empty-state h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 400;
+}
+
+.shop-empty-state p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .modal-backdrop {
@@ -1440,6 +1519,63 @@ p {
 .profile-actions .secondary-button {
   flex: 1;
   justify-content: center;
+}
+
+.profile-wishlist {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.profile-wishlist h3 {
+  margin: 0;
+  color: var(--espresso);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-wishlist div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  padding: 8px;
+}
+
+.profile-wishlist a {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--espresso);
+}
+
+.profile-wishlist img {
+  width: 44px;
+  height: 54px;
+  flex: 0 0 auto;
+  background: var(--pearl);
+}
+
+.profile-wishlist span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-wishlist button {
+  min-height: 34px;
+  border: 1px solid var(--black);
+  background: var(--black);
+  color: #fff;
+  padding: 0 10px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .account-toast {

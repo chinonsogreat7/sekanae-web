@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { getProduct } from "../api/client";
 import { PageMeta } from "../components/PageMeta";
 import { ProductCard } from "../components/ProductCard";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 import { useCatalog } from "../context/CatalogContext";
 import { type Product } from "../data/catalog";
 import { formatMoney } from "../utils/money";

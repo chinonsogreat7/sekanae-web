@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { createCheckoutOrder, createCheckoutSession, type CheckoutAddress } from "../api/orders";
 import { CustomSelect } from "../components/CustomSelect";
 import { PageMeta } from "../components/PageMeta";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 import { formatMoney } from "../utils/money";
 
 const pendingCheckoutStorageKey = "sekanae_pending_checkout";

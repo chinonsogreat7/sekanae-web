@@ -1,7 +1,7 @@
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageMeta } from "../components/PageMeta";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 import { formatMoney } from "../utils/money";
 
 export function CartPage() {

@@ -1,77 +1,26 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   requestCustomerCode,
   signOutCustomerSession,
   validateCustomerSession,
   verifyCustomerCode,
 } from "../api/customerAuth";
+import { getCustomerWishlist, replaceCustomerWishlist } from "../api/customerWishlist";
 import { getApiBaseUrl } from "../api/config";
 import { products, type CurrencyCode, type Product } from "../data/catalog";
 import { defaultExchangeRates, type ExchangeRates } from "../utils/money";
-
-export type CartItem = {
-  productId: string;
-  color: string;
-  quantity: number;
-  giftWrap: boolean;
-};
-
-export type CustomerAccount = {
-  email: string;
-  firstName: string;
-  lastName: string;
-  createdAt: string;
-};
-
-type AccountPromptMode = "create" | "sign-in" | "verify";
-
-type StoreContextValue = {
-  currency: CurrencyCode;
-  setCurrency: (currency: CurrencyCode) => void;
-  exchangeRates: ExchangeRates;
-  defaultShippingAmount: number;
-  cartItems: CartItem[];
-  wishlist: string[];
-  customerAccount: CustomerAccount | null;
-  cartProducts: Array<CartItem & { product: Product }>;
-  cartCount: number;
-  subtotal: number;
-  addToCart: (productId: string, color?: string) => void;
-  removeFromCart: (productId: string, color?: string) => void;
-  updateQuantity: (productId: string, quantity: number, color?: string) => void;
-  toggleGiftWrap: (productId: string, color?: string) => void;
-  toggleWishlist: (productId: string) => void;
-  isWishlisted: (productId: string) => boolean;
-  openAccountPrompt: (reason?: string, mode?: AccountPromptMode) => void;
-  openCustomerProfile: () => void;
-  createCustomerAccount: (account: Omit<CustomerAccount, "createdAt">) => Promise<void>;
-  signInCustomer: (email: string) => Promise<void>;
-  verifyCustomerSignIn: (code: string) => Promise<void>;
-  signOutCustomer: () => void;
-  clearCart: () => void;
-};
-
-type AccountNotice = {
-  message: string;
-  detail?: string;
-  tone?: "success" | "error";
-};
-
-type MarketSettingsResponse = {
-  data: {
-    defaultCurrency: CurrencyCode;
-    defaultShippingAmount: number;
-    exchangeRates: ExchangeRates;
-  };
-};
-
-const StoreContext = createContext<StoreContextValue | undefined>(undefined);
+import { StoreContext } from "./store-context";
+import type { AccountNotice, AccountPromptMode, CartItem, CustomerAccount, MarketSettingsResponse, StoreContextValue } from "./store-types";
 const cartStorageKey = "sekanae_cart";
 const wishlistStorageKey = "sekanae_wishlist";
 const customerStorageKey = "sekanae_customer_account";
 const customerTokenStorageKey = "sekanae_customer_token";
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const codePattern = /^\d{6}$/;
+
+function sameStringList(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
 
 function readStorage<TValue>(key: string, fallback: TValue): TValue {
   if (typeof window === "undefined") {
@@ -117,6 +66,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [accountFormHelp, setAccountFormHelp] = useState<string | null>(null);
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   const [accountNotice, setAccountNotice] = useState<AccountNotice | null>(null);
+  const customerEmail = customerAccount?.email;
 
   function showAccountError(message: string) {
     setAccountFormError(message);
@@ -206,6 +156,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [customerToken]);
 
   useEffect(() => {
+    if (!customerToken || !customerEmail) {
+      return undefined;
+    }
+
+    let isCurrent = true;
+
+    getCustomerWishlist(customerToken)
+      .then((payload) => {
+        if (!isCurrent) return;
+
+        setWishlist((items) => {
+          const mergedWishlist = [...new Set([...payload.productIds, ...items])];
+
+          if (!sameStringList(mergedWishlist, payload.productIds)) {
+            void replaceCustomerWishlist(customerToken, mergedWishlist).catch(() => undefined);
+          }
+
+          return mergedWishlist;
+        });
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setAccountNotice({
+          message: "Wishlist sync paused.",
+          detail: "Your saved pieces are still available on this browser.",
+          tone: "error",
+        });
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [customerEmail, customerToken]);
+
+  useEffect(() => {
     if (!accountNotice) {
       return undefined;
     }
@@ -231,6 +216,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
   const subtotal = cartProducts.reduce((total, item) => total + item.product.price * item.quantity, 0);
+  const wishlistProducts = useMemo(
+    () =>
+      wishlist
+        .map((productId) => products.find((product) => product.id === productId))
+        .filter((product): product is Product => Boolean(product)),
+    [wishlist],
+  );
 
   function getDefaultColor(productId: string, color?: string) {
     return color ?? products.find((product) => product.id === productId)?.colors[0] ?? "Default";
@@ -279,6 +271,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  function persistCustomerWishlist(productIds: string[], token = customerToken, showError = true) {
+    if (!token) {
+      return;
+    }
+
+    void replaceCustomerWishlist(token, productIds).catch(() => {
+      if (!showError) {
+        return;
+      }
+
+      setAccountNotice({
+        message: "Wishlist sync failed.",
+        detail: "We kept your saved pieces on this browser and will try again later.",
+        tone: "error",
+      });
+    });
+  }
+
   function toggleWishlist(productId: string) {
     if (!customerAccount) {
       setPendingWishlistProductId(productId);
@@ -286,11 +296,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setWishlist((items) =>
-      items.includes(productId)
+    setWishlist((items) => {
+      const nextWishlist = items.includes(productId)
         ? items.filter((item) => item !== productId)
-        : [...items, productId]
-    );
+        : [...items, productId];
+
+      persistCustomerWishlist(nextWishlist);
+      return nextWishlist;
+    });
   }
 
   function isWishlisted(productId: string) {
@@ -419,7 +432,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCustomerToken(session.token);
       setCustomerAccount(session.customer);
       if (pendingWishlistProductId) {
-        setWishlist((items) => items.includes(pendingWishlistProductId) ? items : [...items, pendingWishlistProductId]);
+        setWishlist((items) => {
+          const nextWishlist = items.includes(pendingWishlistProductId) ? items : [...items, pendingWishlistProductId];
+          persistCustomerWishlist(nextWishlist, session.token);
+          return nextWishlist;
+        });
         setPendingWishlistProductId(null);
       }
       setAccountPromptReason(null);
@@ -675,6 +692,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 <dd>{cartCount} {cartCount === 1 ? "item" : "items"}</dd>
               </div>
             </dl>
+            {wishlistProducts.length > 0 && (
+              <div className="profile-wishlist">
+                <h3>Wishlist</h3>
+                {wishlistProducts.map((product) => (
+                  <div key={product.id}>
+                    <a href={`/product/${product.slug}`} onClick={() => setIsProfileOpen(false)}>
+                      <img src={product.images[0]} alt="" />
+                      <span>{product.name}</span>
+                    </a>
+                    <button type="button" onClick={() => toggleWishlist(product.id)}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="profile-actions">
               <a className="secondary-button" href="/checkout" onClick={() => setIsProfileOpen(false)}>Continue checkout</a>
               <button className="primary-button" type="button" onClick={signOutCustomer}>Sign out</button>
@@ -699,12 +730,4 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       )}
     </StoreContext.Provider>
   );
-}
-
-export function useStore() {
-  const context = useContext(StoreContext);
-  if (!context) {
-    throw new Error("useStore must be used inside StoreProvider");
-  }
-  return context;
 }

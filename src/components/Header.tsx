@@ -2,7 +2,7 @@ import { ChevronDown, Heart, Menu, Search, ShoppingBag, User, X } from "lucide-r
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { currencies, type CurrencyCode } from "../data/catalog";
-import { useStore } from "../context/StoreContext";
+import { useStore } from "../context/store-context";
 
 const navItems = [
   { label: "Shop", path: "/shop" },
@@ -140,6 +140,8 @@ export function Header() {
                   openAccountPrompt("Create an account to save and view your wishlist.");
                   return;
                 }
+
+                openCustomerProfile();
               }}
             >
               <Heart size={18} />
