@@ -205,7 +205,7 @@ export function CheckoutPage() {
             </label>
             {checkoutError && <p className="api-status api-status-error">{checkoutError}</p>}
             <button className="primary-button" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Opening Stripe..." : "Continue to secure payment"}
+              {isSubmitting ? "Preparing secure payment..." : "Continue to secure payment"}
             </button>
           </form>
           )}
