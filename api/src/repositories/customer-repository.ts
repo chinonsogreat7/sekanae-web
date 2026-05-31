@@ -97,7 +97,7 @@ export async function listCustomersFromDatabase(filters: CustomerListFilters): P
         (array_agg(customer_name order by created_at desc))[1] as name,
         (array_agg(customer_phone order by created_at desc))[1] as phone,
         count(*)::text as order_count,
-        coalesce(sum(total_cents), 0)::text as total_spend_cents,
+        coalesce(sum(total_cents) filter (where payment_status = 'paid'), 0)::text as total_spend_cents,
         (array_agg(currency order by created_at desc))[1] as currency,
         max(created_at) as last_order_at,
         min(created_at) as first_seen_at

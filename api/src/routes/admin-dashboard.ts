@@ -30,7 +30,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance) {
           select lower(email) as email from newsletter_subscribers
         )
         select
-          coalesce((select sum(total_cents)::text from orders where status <> 'cancelled'), '0') as revenue_cents,
+          coalesce((select sum(total_cents)::text from orders where payment_status = 'paid'), '0') as revenue_cents,
           coalesce((select count(*)::text from orders), '0') as order_count,
           coalesce((select count(*)::text from customer_emails), '0') as customer_count,
           coalesce((
