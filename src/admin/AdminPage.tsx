@@ -802,6 +802,7 @@ export function AdminPage() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isRestoringAdminSession, setIsRestoringAdminSession] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginMessage, setLoginMessage] = useState<string | null>(null);
   const [newsletterStats, setNewsletterStats] = useState<NewsletterStats | null>(null);
@@ -964,6 +965,7 @@ export function AdminPage() {
     const savedToken = window.sessionStorage.getItem(adminTokenStorageKey);
 
     if (!savedToken) {
+      setIsRestoringAdminSession(false);
       return;
     }
 
@@ -986,6 +988,8 @@ export function AdminPage() {
         setIsAuthenticated(true);
       } catch {
         window.sessionStorage.removeItem(adminTokenStorageKey);
+      } finally {
+        setIsRestoringAdminSession(false);
       }
     }
 
@@ -4050,6 +4054,18 @@ export function AdminPage() {
     if (routePath === "settings") return renderSettings();
     if (routePath === "audit") return renderAudit();
     return renderDashboard();
+  }
+
+  if (isRestoringAdminSession) {
+    return (
+      <div className="admin-login-page">
+        <section className="admin-login-panel">
+          <p className="microcopy">Admin Studio</p>
+          <h1>Checking access</h1>
+          <p className="admin-status">Restoring your admin session.</p>
+        </section>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
