@@ -1,8 +1,14 @@
 import { z } from "zod";
 
+const defaultWebOrigin = process.env.WEB_ORIGIN
+  ?? (process.env.NODE_ENV === "production" ? "https://sekanae.co" : "http://localhost:5174");
+
 const rawEnv = {
   ...process.env,
   API_PORT: process.env.API_PORT ?? process.env.PORT,
+  WEB_ORIGIN: defaultWebOrigin,
+  STRIPE_SUCCESS_URL: process.env.STRIPE_SUCCESS_URL ?? `${defaultWebOrigin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+  STRIPE_CANCEL_URL: process.env.STRIPE_CANCEL_URL ?? `${defaultWebOrigin}/cart`,
 };
 
 const envSchema = z.object({
@@ -22,8 +28,8 @@ const envSchema = z.object({
   CUSTOMER_SESSION_TTL_SECONDS: z.coerce.number().int().positive().default(60 * 60 * 24 * 30),
   STRIPE_SECRET_KEY: z.string().min(1).optional(),
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
-  STRIPE_SUCCESS_URL: z.string().url().default("http://localhost:5174/checkout/success?session_id={CHECKOUT_SESSION_ID}"),
-  STRIPE_CANCEL_URL: z.string().url().default("http://localhost:5174/cart"),
+  STRIPE_SUCCESS_URL: z.string().url(),
+  STRIPE_CANCEL_URL: z.string().url(),
   CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
   CLOUDINARY_API_KEY: z.string().min(1).optional(),
   CLOUDINARY_API_SECRET: z.string().min(1).optional(),
@@ -33,7 +39,7 @@ const envSchema = z.object({
   DEFAULT_SHIPPING_AMOUNT: z.coerce.number().min(0).default(0),
   VAT_RATE: z.coerce.number().min(0).max(1).default(0.18),
   VAT_INCLUDED: z.coerce.boolean().default(true),
-  WEB_ORIGIN: z.string().default("http://localhost:5174"),
+  WEB_ORIGIN: z.string().url(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 
