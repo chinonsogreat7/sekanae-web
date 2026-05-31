@@ -93,6 +93,14 @@ export async function createCheckoutSession(orderId: string, email: string) {
   return parseApiResponse<CheckoutSession>(response);
 }
 
+export async function confirmCheckoutSession(sessionId: string) {
+  const response = await fetch(`${apiBaseUrl}/api/checkout-sessions/${encodeURIComponent(sessionId)}/confirm`, {
+    method: "POST",
+  });
+
+  return parseApiResponse<CheckoutOrder>(response);
+}
+
 export async function getCheckoutOrder(orderId: string, email: string) {
   const response = await fetch(
     `${apiBaseUrl}/api/orders/${encodeURIComponent(orderId)}?email=${encodeURIComponent(email)}`,

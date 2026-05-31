@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ok } from "../http.js";
 import { openApiSchemas } from "../openapi/schemas.js";
-import { createCheckoutSession, PaymentServiceError } from "../services/payment-service.js";
+import { confirmCheckoutSession, createCheckoutSession, PaymentServiceError } from "../services/payment-service.js";
 import { OrderServiceError } from "../services/order-service.js";
 
 const checkoutParamsSchema = z.object({
@@ -11,6 +11,10 @@ const checkoutParamsSchema = z.object({
 
 const checkoutBodySchema = z.object({
   email: z.string().email(),
+});
+
+const sessionParamsSchema = z.object({
+  sessionId: z.string().min(1),
 });
 
 function paymentErrorPayload(error: PaymentServiceError | OrderServiceError) {
@@ -51,6 +55,33 @@ export async function registerPaymentRoutes(app: FastifyInstance) {
       }
 
       if (error instanceof OrderServiceError) {
+        return reply.status(503).send(paymentErrorPayload(error));
+      }
+
+      throw error;
+    }
+  });
+
+  app.post("/checkout-sessions/:sessionId/confirm", {
+    schema: {
+      tags: ["Payments"],
+      summary: "Confirm Stripe Checkout Session",
+      description: "Verifies a returned Stripe Checkout Session and completes the order if Stripe confirms payment.",
+      response: {
+        200: openApiSchemas.orderResponse,
+        404: openApiSchemas.error,
+        409: openApiSchemas.error,
+        503: openApiSchemas.error,
+      },
+    },
+  }, async (request, reply) => {
+    try {
+      const { sessionId } = sessionParamsSchema.parse(request.params);
+      return ok(await confirmCheckoutSession(sessionId));
+    } catch (error) {
+      if (error instanceof PaymentServiceError) {
+        if (error.statusCode === 404) return reply.status(404).send(paymentErrorPayload(error));
+        if (error.statusCode === 409) return reply.status(409).send(paymentErrorPayload(error));
         return reply.status(503).send(paymentErrorPayload(error));
       }
 

@@ -10,6 +10,8 @@ export class PaymentServiceError extends Error {
       | "STRIPE_NOT_CONFIGURED"
       | "ORDER_NOT_FOUND"
       | "ORDER_NOT_PAYABLE"
+      | "CHECKOUT_SESSION_NOT_FOUND"
+      | "CHECKOUT_SESSION_NOT_PAID"
       | "WEBHOOK_SECRET_REQUIRED"
       | "WEBHOOK_VERIFICATION_FAILED",
     message: string,
@@ -120,6 +122,44 @@ export async function createCheckoutSession(orderId: string, email: string) {
     id: session.id,
     url: session.url,
   };
+}
+
+export async function confirmCheckoutSession(sessionId: string) {
+  const stripe = getStripe();
+  let session: Stripe.Checkout.Session;
+
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch {
+    throw new PaymentServiceError("CHECKOUT_SESSION_NOT_FOUND", "Checkout session not found.", 404);
+  }
+
+  const orderId = session.metadata?.orderId ?? session.client_reference_id ?? undefined;
+
+  if (!orderId) {
+    throw new PaymentServiceError("CHECKOUT_SESSION_NOT_FOUND", "Checkout session is not linked to an order.", 404);
+  }
+
+  if (session.payment_status !== "paid") {
+    throw new PaymentServiceError("CHECKOUT_SESSION_NOT_PAID", "Checkout payment is not confirmed yet.", 409);
+  }
+
+  const result = await completeStripePaymentInDatabase({
+    eventId: `checkout-session:${session.id}`,
+    eventType: "checkout.session.success_return",
+    orderId,
+    paymentReference: session.id,
+  });
+
+  if (result.order && !result.alreadyProcessed) {
+    await sendOrderPaidEmails(result.order);
+  }
+
+  if (!result.order) {
+    throw new PaymentServiceError("ORDER_NOT_FOUND", "Order not found.", 404);
+  }
+
+  return result.order;
 }
 
 export async function handleStripeWebhook(rawBody: Buffer, signature: string | undefined) {

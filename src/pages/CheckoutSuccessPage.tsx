@@ -1,7 +1,7 @@
 import { CheckCircle2, Clock3 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getCheckoutOrder, type CheckoutOrder } from "../api/orders";
+import { confirmCheckoutSession, getCheckoutOrder, type CheckoutOrder } from "../api/orders";
 import { PageMeta } from "../components/PageMeta";
 import { useStore } from "../context/store-context";
 import { formatCurrencyAmount } from "../utils/money";
@@ -27,6 +27,10 @@ function readPendingCheckout(): PendingCheckout | null {
   }
 }
 
+function readSessionIdFromUrl() {
+  return new URLSearchParams(window.location.search).get("session_id");
+}
+
 export function CheckoutSuccessPage() {
   const { clearCart } = useStore();
   const [order, setOrder] = useState<CheckoutOrder | null>(null);
@@ -35,7 +39,9 @@ export function CheckoutSuccessPage() {
   const [pendingCheckout] = useState(() => readPendingCheckout());
 
   useEffect(() => {
-    if (!pendingCheckout) {
+    const sessionId = pendingCheckout?.sessionId ?? readSessionIdFromUrl();
+
+    if (!pendingCheckout && !sessionId) {
       setStatusMessage("We could not find the checkout session on this browser.");
       return;
     }
@@ -48,8 +54,17 @@ export function CheckoutSuccessPage() {
       attempts += 1;
 
       try {
-        const nextOrder = await getCheckoutOrder(checkout.orderId, checkout.email);
+        const nextOrder = sessionId
+          ? await confirmCheckoutSession(sessionId)
+          : checkout
+            ? await getCheckoutOrder(checkout.orderId, checkout.email)
+            : null;
         if (!isCurrent) return;
+
+        if (!nextOrder) {
+          setStatusMessage("We could not find the checkout session on this browser.");
+          return;
+        }
 
         setOrder(nextOrder);
 
