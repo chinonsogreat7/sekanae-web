@@ -4503,10 +4503,24 @@ p {
 
   .nav-shell {
     grid-template-columns: auto 1fr auto;
+    gap: 16px;
   }
 
   .brand-mark {
     justify-self: center;
+  }
+
+  .nav-actions {
+    gap: 4px;
+  }
+
+  .nav-actions > .icon-button:first-child {
+    display: none;
+  }
+
+  .currency-picker > button {
+    min-width: 62px;
+    padding: 0 8px;
   }
 
   .product-grid,
@@ -4555,8 +4569,7 @@ p {
     letter-spacing: 0.18em;
   }
 
-  .admin-entry,
-  .nav-actions > .icon-button:first-child {
+  .admin-entry {
     display: none;
   }
 
@@ -5361,6 +5374,11 @@ body {
 
   .nav-actions {
     grid-column: 3;
+    gap: 4px;
+  }
+
+  .nav-actions > .icon-button:first-child {
+    display: none;
   }
 
   .boutique-home {
