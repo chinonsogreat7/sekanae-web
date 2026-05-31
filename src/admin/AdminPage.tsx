@@ -40,6 +40,7 @@ import { defaultExchangeRates, formatCurrencyAmount, formatMoney, type ExchangeR
 
 const apiBaseUrl = getApiBaseUrl();
 const adminTokenStorageKey = "sekanae_admin_token";
+const adminSessionRestoreTimeoutMs = 4200;
 const productsPerPage = 8;
 const maxAdminImageUploadBytes = 8 * 1024 * 1024;
 const bulkProductCsvColumns = [
@@ -972,11 +973,15 @@ export function AdminPage() {
     const token = savedToken;
 
     async function restoreSession() {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), adminSessionRestoreTimeoutMs);
+
       try {
         const response = await fetch(`${apiBaseUrl}/api/admin/session`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -989,6 +994,7 @@ export function AdminPage() {
       } catch {
         window.sessionStorage.removeItem(adminTokenStorageKey);
       } finally {
+        window.clearTimeout(timeout);
         setIsRestoringAdminSession(false);
       }
     }
