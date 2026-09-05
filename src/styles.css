@@ -5673,3 +5673,14 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   .boutique-home .hero-text-only .hero-copy { padding: 32px 22px; }
   .quick-view > .image-unavailable { min-height: 260px; }
 }
+
+.admin-archive-tools { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; margin: 24px 0; }
+.admin-archive-tools label { display: grid; gap: 8px; flex: 1; min-width: 180px; }
+.admin-archive-list { display: grid; gap: 14px; }
+.admin-archive-list article { display: flex; align-items: center; gap: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 6px; }
+.admin-archive-list img { width: 76px; height: 92px; object-fit: cover; }
+.admin-archive-list article > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.admin-archive-list h3 { font-size: 1.25rem; margin-bottom: 8px; }
+.admin-archive-list p { margin: 8px 0 0; }
+.admin-archive-list button { flex-shrink: 0; min-height: 44px; }
+@media (max-width: 600px) { .admin-archive-list article { flex-wrap: wrap; padding: 16px; gap: 12px; } .admin-archive-list article > button { width: 100%; } }
