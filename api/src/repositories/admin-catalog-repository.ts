@@ -223,8 +223,24 @@ export async function upsertProductInDatabase(product: ProductWrite, options: { 
   return savedProduct;
 }
 
-export async function listAdminProducts(): Promise<Product[]> {
-  return listAdminProductsFromDatabase();
+export async function listAdminProducts(archived = false): Promise<Product[]> {
+  return listAdminProductsFromDatabase(archived);
+}
+
+export async function restoreProductInDatabase(productId: string): Promise<boolean> {
+  const result = await getPool().query(
+    "update products set active = true, updated_at = now() where id = $1 and active = false",
+    [productId],
+  );
+  return Boolean(result.rowCount);
+}
+
+export async function restoreCollectionInDatabase(collectionId: string): Promise<boolean> {
+  const result = await getPool().query(
+    "update collections set active = true, updated_at = now() where id = $1 and active = false",
+    [collectionId],
+  );
+  return Boolean(result.rowCount);
 }
 
 export async function updateInventoryInDatabase(productId: string, quantity: number): Promise<Product | undefined> {
@@ -265,7 +281,7 @@ export async function softDeleteProductInDatabase(productId: string): Promise<bo
 export async function upsertCollectionInDatabase(collection: CollectionWrite): Promise<Collection> {
   const pool = getPool();
 
-  await pool.query(
+  const saved = await pool.query(
     `
       insert into collections (id, title, description, image_url, cta, sort_order, active)
       values ($1, $2, $3, $4, $5, $6, $7)
@@ -277,6 +293,8 @@ export async function upsertCollectionInDatabase(collection: CollectionWrite): P
         sort_order = excluded.sort_order,
         active = excluded.active,
         updated_at = now()
+      where collections.active = true
+      returning id
     `,
     [
       collection.id,
@@ -288,6 +306,10 @@ export async function upsertCollectionInDatabase(collection: CollectionWrite): P
       true,
     ],
   );
+
+  if (!saved.rowCount) {
+    throw Object.assign(new Error("This collection has been archived. Unarchive it before making changes."), { statusCode: 409 });
+  }
 
   const savedCollection = (await listCollectionsFromDatabase()).find((item) => item.id === collection.id);
 

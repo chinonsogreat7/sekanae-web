@@ -3,6 +3,8 @@ import { getAdminActorEmail, requireAdmin } from "../auth/admin.js";
 import { ok } from "../http.js";
 import { recordAuditLog } from "../repositories/audit-repository.js";
 import { openApiSchemas } from "../openapi/schemas.js";
+import { z } from "zod";
+import { listCollectionsFromDatabase } from "../repositories/catalog-repository.js";
 import {
   categoryBodySchema,
   collectionBodySchema,
@@ -13,6 +15,8 @@ import {
 } from "./admin-catalog-schemas.js";
 import {
   listAdminProducts,
+  restoreProductInDatabase,
+  restoreCollectionInDatabase,
   listCategoriesInDatabase,
   softDeleteCategoryInDatabase,
   softDeleteCollectionInDatabase,
@@ -23,6 +27,9 @@ import {
   upsertProductInDatabase,
 } from "../repositories/admin-catalog-repository.js";
 
+const archiveQuery = { type: "object", properties: { archived: { type: "string", enum: ["true", "false"] } } } as const;
+const parseArchiveQuery = (query: unknown) => z.object({ archived: z.enum(["true", "false"]).default("false") }).parse(query).archived === "true";
+
 export async function registerAdminCatalogRoutes(app: FastifyInstance) {
   app.addHook("preValidation", requireAdmin);
 
@@ -30,16 +37,18 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Admin"],
       summary: "List admin products",
-      description: "Returns active admin products, including drafts hidden from the storefront.",
+      description: "Returns active admin products, including drafts. Use archived=true for archived products.",
+      querystring: archiveQuery,
       security: [{ bearerAuth: [] }],
       response: {
         200: openApiSchemas.productListResponse,
+        400: openApiSchemas.error,
         401: openApiSchemas.error,
         503: openApiSchemas.error,
       },
     },
-  }, async () => {
-    const products = await listAdminProducts();
+  }, async (request) => {
+    const products = await listAdminProducts(parseArchiveQuery(request.query));
 
     return ok(products, {
       total: products.length,
@@ -52,6 +61,34 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
       tags: [...new Set(products.flatMap((product) => product.tags ?? []))].sort(),
     });
   });
+
+  app.get("/admin/collections", {
+    schema: {
+      tags: ["Admin"], summary: "List active or archived collections",
+      security: [{ bearerAuth: [] }], querystring: archiveQuery,
+      response: { 200: openApiSchemas.collectionsResponse, 400: openApiSchemas.error, 401: openApiSchemas.error },
+    },
+  }, async (request) => ok(await listCollectionsFromDatabase(parseArchiveQuery(request.query))));
+
+  for (const entity of ["product", "collection"] as const) {
+    app.post(`/admin/${entity}s/:id/restore`, {
+      schema: {
+        tags: ["Admin"], summary: `Unarchive ${entity}`,
+        description: "Restores the record without changing its data or publication status.",
+        security: [{ bearerAuth: [] }], params: openApiSchemas.idParams,
+        response: {
+          200: { type: "object", required: ["data"], properties: { data: { type: "object", required: ["restored"], properties: { restored: { type: "boolean" } } } } },
+          401: openApiSchemas.error, 404: openApiSchemas.error, 503: openApiSchemas.error,
+        },
+      },
+    }, async (request, reply) => {
+      const { id } = idParamSchema.parse(request.params);
+      const restored = await (entity === "product" ? restoreProductInDatabase(id) : restoreCollectionInDatabase(id));
+      if (!restored) return reply.status(404).send({ error: { code: "ARCHIVED_ITEM_NOT_FOUND", message: `Archived ${entity} not found. It may already have been restored.` } });
+      await recordAuditLog({ actorEmail: getAdminActorEmail(request), action: "restore", entityType: entity, entityId: id, summary: `Unarchived ${entity} ${id}` });
+      return ok({ restored: true });
+    });
+  }
 
   app.post("/admin/products", {
     schema: {
@@ -203,6 +240,7 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
       body: openApiSchemas.adminCollectionBody,
       response: {
         200: openApiSchemas.collectionResponse,
+        409: openApiSchemas.error,
         400: openApiSchemas.error,
         401: openApiSchemas.error,
         503: openApiSchemas.error,

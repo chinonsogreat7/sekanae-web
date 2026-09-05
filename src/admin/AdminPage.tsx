@@ -1,3 +1,4 @@
+import { ArchivedCatalogPanel } from "./ArchivedCatalogPanel";
 import { AdminGlobalSearch } from "./AdminGlobalSearch";
 import { OrderFiltersPanel } from "./OrderFiltersPanel";
 import { emptyOrderFilters, lowStockThreshold, type OrderFilters } from "../../packages/admin/src/workflows";
@@ -637,6 +638,8 @@ export function AdminPage() {
   const collectionImageInputRef = useRef<HTMLInputElement | null>(null);
   const categoryImageInputRef = useRef<HTMLInputElement | null>(null);
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const [showArchivedProducts, setShowArchivedProducts] = useState(false);
+  const [showArchivedCollections, setShowArchivedCollections] = useState(false);
   const productsRequestId = useRef(0);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
@@ -1049,9 +1052,11 @@ export function AdminPage() {
       await readAdmin<{ archived: boolean }>(`/api/admin/collections/${encodeURIComponent(collectionId)}`, {
         method: "DELETE",
       });
-      setCollectionMessage("Collection archived.");
+      setCollections(current => current.filter(item => item.id !== collectionId));
+      invalidateCatalog("");
       setCollectionDraft(createCollectionDraft());
       await readCollections();
+      setCollectionMessage("Collection archived. Find it under Archived collections to unarchive it.");
       await readAudit();
     } catch (error) {
       setCollectionMessage(error instanceof Error ? error.message : "Collection archive failed.");
@@ -1168,7 +1173,7 @@ export function AdminPage() {
       });
       removeArchivedProduct(productId);
       const refreshed = await readProducts();
-      setProductMessage(refreshed ? "Product archived." : "Product archived, but the list couldn’t refresh. Please refresh to try again.");
+      setProductMessage(refreshed ? "Product archived. Find it under Archived products to unarchive it." : "Product archived, but the list couldn’t refresh. Please refresh to try again.");
       await readDashboard();
       await readAudit();
       if (routePath.startsWith("products/") && routePath !== "products") {
@@ -2090,6 +2095,9 @@ export function AdminPage() {
   }
 
   function renderProductsList() {
+    if (showArchivedProducts) return <ArchivedCatalogPanel kind="products" request={readAdmin}
+      onBack={() => { setShowArchivedProducts(false); void readProducts(); }}
+      onRestored={async (id) => { invalidateCatalog(id); await readProducts(); await readDashboard(); await readAudit(); }} />;
     return (
       <section className="admin-grid admin-grid-wide">
         <article className="admin-panel admin-panel-wide">
@@ -2097,9 +2105,10 @@ export function AdminPage() {
             <div>
               <h2>Product Catalog</h2>
               <p className="admin-status admin-status-tight">
-                Showing {visibleProducts.length} of {filteredProducts.length} matching products
+                Showing {visibleProducts.length} of {filteredProducts.length} matching active products
               </p>
             </div>
+            <button type="button" onClick={() => { setSelectedProductIds([]); setShowArchivedProducts(true); }}>Archived products</button>
             <Link className="admin-button-link" to={`${adminBase}/products/new`}>
               <PackagePlus size={16} /> New product
             </Link>
@@ -2961,6 +2970,9 @@ export function AdminPage() {
   }
 
   function renderCollections() {
+    if (showArchivedCollections) return <ArchivedCatalogPanel kind="collections" request={readAdmin}
+      onBack={() => { setShowArchivedCollections(false); void readCollections(); }}
+      onRestored={async () => { invalidateCatalog(""); await readCollections(); await readAudit(); }} />;
     return (
       <section className="admin-grid admin-grid-wide">
         <article className="admin-panel">
@@ -2969,6 +2981,7 @@ export function AdminPage() {
               <h2>Collections Manager</h2>
               <p className="admin-status admin-status-tight">Create landing groups, edit imagery, and control display order.</p>
             </div>
+            <button type="button" onClick={() => setShowArchivedCollections(true)}>Archived collections</button>
             <button type="button" onClick={() => setCollectionDraft(createCollectionDraft())}>
               <PackagePlus size={16} /> New collection
             </button>
@@ -3052,7 +3065,7 @@ export function AdminPage() {
 
         <article className="admin-panel admin-panel-wide">
           <div className="panel-heading">
-            <h2>Live Collections</h2>
+            <h2>Active Collections</h2>
             <button type="button" onClick={readCollections}>Refresh</button>
           </div>
           <div className="admin-collection-grid">
