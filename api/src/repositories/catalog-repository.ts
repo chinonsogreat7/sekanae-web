@@ -278,7 +278,7 @@ export async function getProductByIdFromDatabase(id: string, options: { includeD
   return result.rows[0] ? mapProduct(result.rows[0]) : undefined;
 }
 
-export async function listAdminProductsFromDatabase(): Promise<Product[]> {
+export async function listAdminProductsFromDatabase(archived = false): Promise<Product[]> {
   const pool = getPool();
   const result = await pool.query<ProductRow>(
     `
@@ -291,23 +291,25 @@ export async function listAdminProductsFromDatabase(): Promise<Product[]> {
         coalesce((select array_agg(pt.tag order by pt.sort_order) from product_tags pt where pt.product_id = p.id), '{}'::text[]) as product_tags
       from products p
       left join inventory i on i.product_id = p.id
-      where p.active = true
+      where p.active = $1
       order by p.updated_at desc, p.created_at desc
     `,
+    [!archived],
   );
 
   return result.rows.map(mapProduct);
 }
 
-export async function listCollectionsFromDatabase(): Promise<Collection[]> {
+export async function listCollectionsFromDatabase(archived = false): Promise<Collection[]> {
   const pool = getPool();
   const result = await pool.query<CollectionRow>(
     `
       select id, title, description, image_url, cta
       from collections
-      where active = true
+      where active = $1
       order by sort_order asc, title asc
     `,
+    [!archived],
   );
 
   return result.rows.map(mapCollection);

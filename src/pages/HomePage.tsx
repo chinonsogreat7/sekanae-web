@@ -3,13 +3,14 @@ import { Link } from "react-router-dom";
 import { ProductCard } from "../components/ProductCard";
 import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
-import { collections } from "../data/catalog";
+import { useCollections } from "../hooks/useCollections";
 import { useCatalog } from "../context/CatalogContext";
 import { journalPosts } from "../data/editorial";
 import { CatalogFeedback } from "../components/CatalogFeedback";
 import { ProductImage } from "../components/ProductImage";
 
 export function HomePage() {
+  const { collections } = useCollections();
   const { products, error, loading, retry } = useCatalog();
   const featuredProduct = products.find((product) => product.category === "Jewelry") ?? products[0];
   const newArrivals = [...products].sort((a, b) => Number(Boolean(b.isNew)) - Number(Boolean(a.isNew))).slice(0, 5);

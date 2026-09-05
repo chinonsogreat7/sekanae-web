@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
-import { collections } from "../data/catalog";
+import { useCollections } from "../hooks/useCollections";
 
 export function CollectionsPage() {
+  const { collections, loading, error, retry } = useCollections();
   return (
     <div className="page">
       <PageMeta
@@ -22,6 +23,9 @@ export function CollectionsPage() {
       </section>
       <section className="section-pad">
         <SectionHeading title="Edits for every destination" copy="Travel, evening, gold, everyday elegance, and new arrivals." />
+        {loading && !collections.length && <p role="status">Loading collections…</p>}
+        {error && <div role="status"><p>Collections couldn’t load. Please try again.</p><button className="secondary-button" type="button" onClick={retry}>Try again</button></div>}
+        {!loading && !error && !collections.length && <p>No collections are available right now. Please check back soon.</p>}
         <div className="collection-grid large">
           {collections.map((collection) => (
             <article className="collection-card" key={collection.id}>
