@@ -31,6 +31,8 @@ export type CheckoutOrder = {
   id: string;
   currency: CurrencyCode;
   subtotal: number;
+  discount: number;
+  promoCode?: string;
   shipping: number;
   tax: number;
   total: number;
@@ -50,6 +52,8 @@ export type CreateCheckoutOrderInput = {
   items: CheckoutOrderItem[];
   notes?: string;
   marketingOptIn?: boolean;
+  expectedTotal?: number;
+  promoCode?: string;
 };
 
 export type CheckoutSession = {
@@ -63,7 +67,7 @@ async function parseApiResponse<TData>(response: Response): Promise<TData> {
   const payload = await response.json() as ApiResponse<TData> & ApiErrorPayload;
 
   if (!response.ok) {
-    throw new Error(payload.error?.message ?? `Request failed with status ${response.status}`);
+    throw new Error(response.status >= 500 ? "Checkout is temporarily unavailable. Please try again in a moment." : payload.error?.message ?? "Please check your details and try again.");
   }
 
   return payload.data;
@@ -107,4 +111,28 @@ export async function getCheckoutOrder(orderId: string, email: string) {
   );
 
   return parseApiResponse<CheckoutOrder>(response);
+}
+
+export type CartQuote = {
+  currency: CurrencyCode;
+  subtotal: number;
+  discount: number;
+  promoCode?: string;
+  shipping: number;
+  tax: number;
+  total: number;
+  taxIncluded: boolean;
+  taxRate: number;
+  canCheckout: boolean;
+  items: Array<CheckoutOrderItem & { name: string; unitPrice: number; lineTotal: number; isAvailable: boolean; message?: string }>;
+};
+
+export async function getCartQuote(input: { currency: CurrencyCode; promoCode?: string; items: CheckoutOrderItem[] }): Promise<CartQuote> {
+  const response = await fetch(`${apiBaseUrl}/api/cart/quote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(10000),
+  });
+  return parseApiResponse<CartQuote>(response);
 }

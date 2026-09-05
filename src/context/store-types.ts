@@ -23,6 +23,8 @@ export type StoreContextValue = {
   exchangeRates: ExchangeRates;
   defaultShippingAmount: number;
   cartItems: CartItem[];
+  promoCode: string;
+  setPromoCode: (code: string) => void;
   wishlist: string[];
   customerAccount: CustomerAccount | null;
   cartProducts: Array<CartItem & { product: Product }>;

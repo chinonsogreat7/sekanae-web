@@ -14,6 +14,7 @@ const addressSchema = z.object({
 });
 
 const createOrderSchema = z.object({
+  promoCode: z.string().trim().min(1).max(40).optional(),
   currency: z.enum(["USD", "GBP", "EUR", "NGN", "AED"]).optional(),
   customer: z.object({
     email: z.string().email(),
@@ -29,6 +30,7 @@ const createOrderSchema = z.object({
   })).min(1).max(50),
   notes: z.string().max(1000).optional(),
   marketingOptIn: z.boolean().optional(),
+  expectedTotal: z.number().nonnegative().optional(),
 });
 
 const orderLookupParamsSchema = z.object({

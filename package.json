@@ -19,7 +19,9 @@
     "db:seed": "tsx api/scripts/seed-catalog.ts",
     "cart:reminders": "tsx api/scripts/send-abandoned-cart-reminders.ts",
     "smoke": "tsx api/scripts/smoke.ts",
-    "typecheck": "tsc -b && tsc -p tsconfig.api.json --noEmit"
+    "typecheck": "tsc -b && tsc -p tsconfig.api.json --noEmit",
+    "test": "tsx --test api/tests/*.test.ts",
+    "test:storefront": "TSX_TSCONFIG_PATH=tsconfig.app.json node --import tsx --test tests/storefront.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "10.0.2",

@@ -1,4 +1,12 @@
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
 import { z } from "zod";
+
+// Local API scripts share the ignored development configuration. Exported
+// environment variables retain precedence; production uses its host settings.
+if ((!process.env.NODE_ENV || process.env.NODE_ENV === "development") && existsSync(".env.local")) {
+  loadEnvFile(".env.local");
+}
 
 const defaultWebOrigin = process.env.WEB_ORIGIN
   ?? (process.env.NODE_ENV === "production" ? "https://sekanae.co" : "http://localhost:5174");
@@ -38,7 +46,7 @@ const envSchema = z.object({
   DEFAULT_MARKET_COUNTRY: z.string().length(2).default("MT"),
   DEFAULT_SHIPPING_AMOUNT: z.coerce.number().min(0).default(0),
   VAT_RATE: z.coerce.number().min(0).max(1).default(0.18),
-  VAT_INCLUDED: z.coerce.boolean().default(true),
+  VAT_INCLUDED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
   WEB_ORIGIN: z.string().url(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });

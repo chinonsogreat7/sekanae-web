@@ -34,6 +34,8 @@ export type ValidatedCart = {
 export async function validateCart(input: CartValidationInput): Promise<ValidatedCart> {
   const settings = await getStoreSettings();
   const currency = input.currency ?? settings.defaultCurrency as CurrencyCode;
+  const requested = new Map<string, number>();
+  for (const item of input.items) requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
   const items = await Promise.all(input.items.map(async (item) => {
     const product = await getProductById(item.productId);
 
@@ -52,8 +54,9 @@ export async function validateCart(input: CartValidationInput): Promise<Validate
       };
     }
 
-    const color = item.color && product.colors.includes(item.color) ? item.color : product.colors[0] ?? "Default";
-    const isAvailable = product.stock >= item.quantity;
+    const color = item.color ?? product.colors[0] ?? "Default";
+    const validColor = product.colors.length ? product.colors.includes(color) : color === "Default";
+    const isAvailable = validColor && product.stock >= (requested.get(item.productId) ?? item.quantity);
     const unitPrice = convertFromBaseCurrency(product.price, currency, settings.exchangeRates);
 
     return {
@@ -66,7 +69,7 @@ export async function validateCart(input: CartValidationInput): Promise<Validate
       lineTotal: isAvailable ? unitPrice * item.quantity : 0,
       availableQuantity: product.stock,
       isAvailable,
-      message: isAvailable ? undefined : `Only ${product.stock} available.`,
+      message: isAvailable ? undefined : !validColor ? "This color is no longer available." : `Only ${product.stock} available across all colors.`,
     };
   }));
 

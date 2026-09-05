@@ -32,7 +32,7 @@ function readSessionIdFromUrl() {
 }
 
 export function CheckoutSuccessPage() {
-  const { clearCart } = useStore();
+  const { clearCart, customerAccount, openAccountPrompt } = useStore();
   const [order, setOrder] = useState<CheckoutOrder | null>(null);
   const [statusMessage, setStatusMessage] = useState("Confirming your payment with Stripe.");
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -128,6 +128,7 @@ export function CheckoutSuccessPage() {
             </div>
           </dl>
         )}
+        {isConfirmed && !customerAccount && <div className="checkout-account-status"><div><strong>Keep your details for next time</strong><span>Creating an account is optional.</span></div><button type="button" onClick={() => openAccountPrompt("Create an account for your next visit.")}>Create an account</button></div>}
         <div className="confirmation-actions">
           <Link to="/shop" className="primary-button">Continue shopping</Link>
           <Link to="/client-care" className="secondary-button">Contact client care</Link>

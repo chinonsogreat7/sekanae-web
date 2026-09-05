@@ -2,9 +2,11 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ok } from "../http.js";
 import { openApiSchemas } from "../openapi/schemas.js";
+import { calculateOrderPricing } from "../services/pricing-service.js";
 import { validateCart } from "../services/cart-service.js";
 
 const cartValidationSchema = z.object({
+  promoCode: z.string().trim().min(1).max(40).optional(),
   currency: z.enum(["USD", "GBP", "EUR", "NGN", "AED"]).optional(),
   items: z
     .array(
@@ -18,6 +20,19 @@ const cartValidationSchema = z.object({
 });
 
 export async function registerCartRoutes(app: FastifyInstance) {
+  app.post("/cart/quote", {
+    schema: {
+      tags: ["Cart"],
+      summary: "Quote cart with current prices, shipping and VAT",
+      body: openApiSchemas.cartValidationBody,
+    },
+  }, async (request) => {
+    const payload = cartValidationSchema.parse(request.body);
+    const cart = await validateCart(payload);
+    const pricing = await calculateOrderPricing(cart.subtotal, cart.currency, payload.promoCode);
+    return ok({ ...cart, ...pricing });
+  });
+
   app.post("/cart/validate", {
     schema: {
       tags: ["Cart"],

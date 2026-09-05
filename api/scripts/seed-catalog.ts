@@ -13,21 +13,14 @@ async function seedCatalog() {
         `
           insert into collections (id, title, description, image_url, cta, sort_order, active)
           values ($1, $2, $3, $4, $5, $6, true)
-          on conflict (id) do update set
-            title = excluded.title,
-            description = excluded.description,
-            image_url = excluded.image_url,
-            cta = excluded.cta,
-            sort_order = excluded.sort_order,
-            active = true,
-            updated_at = now()
+          on conflict (id) do nothing
         `,
         [collection.id, collection.title, collection.description, collection.image, collection.cta, index],
       );
     }
 
     for (const product of products) {
-      await client.query(
+      const inserted = await client.query(
         `
           insert into products (
             id,
@@ -49,24 +42,8 @@ async function seedCatalog() {
             active
           )
           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, true)
-          on conflict (id) do update set
-            slug = excluded.slug,
-            name = excluded.name,
-            category = excluded.category,
-            collection = excluded.collection,
-            price_cents = excluded.price_cents,
-            material = excluded.material,
-            description = excluded.description,
-            details_materials = excluded.details_materials,
-            details_dimensions = excluded.details_dimensions,
-            details_care = excluded.details_care,
-            details_shipping = excluded.details_shipping,
-            rating = excluded.rating,
-            reviews = excluded.reviews,
-            is_new = excluded.is_new,
-            is_bridal_preview = excluded.is_bridal_preview,
-            active = true,
-            updated_at = now()
+          on conflict (id) do nothing
+          returning id
         `,
         [
           product.id,
@@ -88,10 +65,9 @@ async function seedCatalog() {
         ],
       );
 
-      await client.query("delete from product_images where product_id = $1", [product.id]);
-      await client.query("delete from product_colors where product_id = $1", [product.id]);
-      await client.query("delete from product_occasions where product_id = $1", [product.id]);
-      await client.query("delete from product_tags where product_id = $1", [product.id]);
+      // Seeding runs on startup. Existing records belong to the admin, including
+      // their archived state, images, tags and current inventory.
+      if (!inserted.rowCount) continue;
 
       for (const [index, image] of product.images.entries()) {
         await client.query(
@@ -154,7 +130,7 @@ async function seedCatalog() {
     }
 
     await client.query("commit");
-    console.log(`Seeded ${products.length} products and ${collections.length} collections`);
+    console.log("Catalog seed complete; existing products and collections preserved.");
   } catch (error) {
     await client.query("rollback");
     throw error;

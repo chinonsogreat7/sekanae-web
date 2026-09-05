@@ -50,7 +50,7 @@ function mapCategory(row: CategoryRow): ProductCategoryRecord {
   };
 }
 
-export async function upsertProductInDatabase(product: ProductWrite): Promise<Product> {
+export async function upsertProductInDatabase(product: ProductWrite, options: { createOnly?: boolean } = {}): Promise<Product> {
   const pool = getPool();
   const client = await pool.connect();
   const tags = product.tags ?? [];
@@ -73,7 +73,7 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
       [categoryIdFromName(product.category), product.category],
     );
 
-    await client.query(
+    const saved = await client.query(
       `
         insert into products (
           id,
@@ -115,6 +115,8 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
           status = excluded.status,
           active = excluded.active,
           updated_at = now()
+        where products.active = true and not $19::boolean
+        returning id
       `,
       [
         product.id,
@@ -135,8 +137,15 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
         Boolean(isBridalPreview),
         status,
         true,
+        Boolean(options.createOnly),
       ],
     );
+
+    if (!saved.rowCount) {
+      throw Object.assign(new Error(options.createOnly
+        ? "A product with this name already exists. CSV imports cannot overwrite existing products."
+        : "This product has been archived. Refresh the product list before making changes."), { statusCode: 409 });
+    }
 
     await client.query("delete from product_images where product_id = $1", [product.id]);
     await client.query("delete from product_colors where product_id = $1", [product.id]);
@@ -197,6 +206,9 @@ export async function upsertProductInDatabase(product: ProductWrite): Promise<Pr
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
+    if (options.createOnly && (error as { code?: string }).code === "23505") {
+      throw Object.assign(new Error("A product with this ID or URL already exists. Rename the CSV product before importing."), { statusCode: 409 });
+    }
     throw error;
   } finally {
     client.release();

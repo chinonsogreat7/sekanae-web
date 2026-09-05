@@ -18,6 +18,8 @@ const migrationFiles = [
   "013_product_status.sql",
   "014_customer_wishlist.sql",
   "015_saved_carts.sql",
+  "016_promo_codes.sql",
+  "017_admin_saved_work.sql",
 ];
 
 async function migrate() {

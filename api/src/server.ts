@@ -1,3 +1,5 @@
+import { registerAdminWorkflowRoutes } from "./routes/admin-workflows.js";
+import { registerAdminPromoRoutes } from "./routes/admin-promos.js";
 import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
@@ -138,6 +140,7 @@ export async function buildServer() {
   await app.register(registerPaymentRoutes, { prefix: "/api" });
   await app.register(registerStripeWebhookRoutes, { prefix: "/api" });
   await app.register(registerAdminAuthRoutes, { prefix: "/api" });
+  await app.register(registerAdminWorkflowRoutes, { prefix: "/api" });
   await app.register(registerAdminDashboardRoutes, { prefix: "/api" });
   await app.register(registerAdminCatalogRoutes, { prefix: "/api" });
   await app.register(registerAdminContentRoutes, { prefix: "/api" });
@@ -146,6 +149,7 @@ export async function buildServer() {
   await app.register(registerAdminOrderRoutes, { prefix: "/api" });
   await app.register(registerAdminMediaRoutes, { prefix: "/api" });
   await app.register(registerAdminNewsletterRoutes, { prefix: "/api" });
+  await app.register(registerAdminPromoRoutes, { prefix: "/api" });
   await app.register(registerAdminSettingsRoutes, { prefix: "/api" });
   await app.register(registerAdminSecurityRoutes, { prefix: "/api" });
   await app.register(registerAdminAuditRoutes, { prefix: "/api" });

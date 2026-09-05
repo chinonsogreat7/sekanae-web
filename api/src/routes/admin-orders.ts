@@ -1,3 +1,4 @@
+import { orderFiltersSchema } from "../../../packages/admin/src/workflows.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { getAdminActorEmail, requireAdmin } from "../auth/admin.js";
@@ -16,8 +17,6 @@ const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled"
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
 
 const orderListQuerySchema = z.object({
-  status: z.enum(orderStatuses).optional(),
-  email: z.string().email().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -47,6 +46,10 @@ export async function registerAdminOrderRoutes(app: FastifyInstance) {
       querystring: {
         type: "object",
         properties: {
+          q: { type: "string", maxLength: 200 },
+          paymentStatus: { type: "string", enum: paymentStatuses },
+          from: { type: "string", format: "date" },
+          to: { type: "string", format: "date" },
           status: { type: "string", enum: orderStatuses },
           email: { type: "string", format: "email" },
           limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
@@ -62,9 +65,11 @@ export async function registerAdminOrderRoutes(app: FastifyInstance) {
     },
   }, async (request) => {
     const query = orderListQuerySchema.parse(request.query);
+    const filters = orderFiltersSchema.parse(request.query);
     const { items, total } = await listOrders({
-      ...query,
-      status: query.status as OrderStatus | undefined,
+      ...query, ...filters,
+      status: filters.status || undefined,
+      paymentStatus: filters.paymentStatus || undefined,
     });
 
     return ok(items, { total, limit: query.limit, offset: query.offset });

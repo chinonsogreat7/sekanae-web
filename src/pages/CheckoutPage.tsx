@@ -1,3 +1,4 @@
+import { PromoCodeField } from "../components/PromoCodeField";
 import { CreditCard, LockKeyhole, Truck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -5,7 +6,8 @@ import { createCheckoutOrder, createCheckoutSession, type CheckoutAddress } from
 import { CustomSelect } from "../components/CustomSelect";
 import { PageMeta } from "../components/PageMeta";
 import { useStore } from "../context/store-context";
-import { formatMoney } from "../utils/money";
+import { QuoteSummary } from "../components/QuoteSummary";
+import { useCartQuote } from "../hooks/useCartQuote";
 
 const pendingCheckoutStorageKey = "sekanae_pending_checkout";
 
@@ -32,16 +34,14 @@ export function CheckoutPage() {
   const {
     cartProducts,
     currency,
-    exchangeRates,
-    defaultShippingAmount,
-    subtotal,
+    cartItems,
     customerAccount,
     openAccountPrompt,
   } = useStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
-  const hasCartItems = cartProducts.length > 0;
-  const shipping = hasCartItems ? defaultShippingAmount : 0;
+  const hasCartItems = cartItems.length > 0;
+  const quoteState = useCartQuote();
   const hasGiftWrap = cartProducts.some((item) => item.giftWrap);
 
   async function handleCheckoutSubmit(event: FormEvent<HTMLFormElement>) {
@@ -52,8 +52,8 @@ export function CheckoutPage() {
       return;
     }
 
-    if (!customerAccount) {
-      openAccountPrompt("Create an account to continue to checkout.");
+    if (!quoteState.quote?.canCheckout) {
+      setCheckoutError("Please wait for your order summary or try refreshing it.");
       return;
     }
 
@@ -64,7 +64,7 @@ export function CheckoutPage() {
       const formData = new FormData(event.currentTarget);
       const firstName = readFormValue(formData, "firstName");
       const lastName = readFormValue(formData, "lastName");
-      const email = customerAccount.email.toLowerCase();
+      const email = (customerAccount?.email ?? readFormValue(formData, "email")).toLowerCase();
       const phone = readFormValue(formData, "phone");
       const giftWrapItems = cartProducts
         .filter((item) => item.giftWrap)
@@ -75,6 +75,8 @@ export function CheckoutPage() {
       ].filter(Boolean).join("\n");
       const order = await createCheckoutOrder({
         currency,
+        expectedTotal: quoteState.quote.total,
+        promoCode: quoteState.quote.promoCode,
         customer: {
           email,
           name: `${firstName} ${lastName}`.trim(),
@@ -82,7 +84,7 @@ export function CheckoutPage() {
         },
         shippingAddress: buildCheckoutAddress(formData),
         billingAddress: buildCheckoutAddress(formData),
-        items: cartProducts.map((item) => ({
+        items: cartItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
           color: item.color,
@@ -105,6 +107,7 @@ export function CheckoutPage() {
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : "Unable to start checkout. Please try again.");
       setIsSubmitting(false);
+      quoteState.retry();
     }
   }
 
@@ -129,17 +132,9 @@ export function CheckoutPage() {
               <p>Add a piece before continuing to checkout.</p>
               <Link to="/shop" className="primary-button">Shop the collection</Link>
             </div>
-          ) : !customerAccount ? (
-            <div className="empty-state checkout-gate">
-              <h2>Create an account to checkout.</h2>
-              <p>Your cart is saved in this browser. Create an account before placing an order so we can keep your order history and delivery details together.</p>
-              <button className="primary-button" type="button" onClick={() => openAccountPrompt("Create an account to continue to checkout.")}>
-                Create account
-              </button>
-            </div>
           ) : (
           <form onSubmit={handleCheckoutSubmit}>
-            <div className="checkout-account-status" role="status">
+            {customerAccount ? <div className="checkout-account-status" role="status">
               <div>
                 <strong>Signed in as {customerAccount.firstName} {customerAccount.lastName}</strong>
                 <span>{customerAccount.email}</span>
@@ -151,21 +146,23 @@ export function CheckoutPage() {
                 Switch account
               </button>
             </div>
+            : <div className="checkout-account-status"><div><strong>Guest checkout</strong><span>No account needed. We’ll email your order confirmation.</span></div><button type="button" onClick={() => openAccountPrompt("Sign in to use your saved details.", "sign-in")}>Already a customer? Sign in</button></div>}
             <div className="checkout-section-heading">
               <h2>Delivery details</h2>
               <p>We use these details for shipping and order updates before handing payment to Stripe.</p>
             </div>
             <div className="form-grid">
               <label>
-                Account email
+                Email address
                 <input
                   type="email"
                   name="email"
                   required
-                  value={customerAccount.email}
+                  defaultValue={customerAccount?.email ?? ""}
+                  key={customerAccount?.email ?? "guest"}
                   autoComplete="email"
-                  readOnly
-                  className="checkout-locked-input"
+                  readOnly={Boolean(customerAccount)}
+                  className={customerAccount ? "checkout-locked-input" : undefined}
                 />
               </label>
               <CustomSelect
@@ -181,8 +178,8 @@ export function CheckoutPage() {
                   "Singapore",
                 ]}
               />
-              <label>First name<input name="firstName" required defaultValue={customerAccount.firstName} autoComplete="given-name" /></label>
-              <label>Last name<input name="lastName" required defaultValue={customerAccount.lastName} autoComplete="family-name" /></label>
+              <label>First name<input key={`first-${customerAccount?.email ?? "guest"}`} name="firstName" required defaultValue={customerAccount?.firstName ?? ""} autoComplete="given-name" /></label>
+              <label>Last name<input key={`last-${customerAccount?.email ?? "guest"}`} name="lastName" required defaultValue={customerAccount?.lastName ?? ""} autoComplete="family-name" /></label>
               <label>Phone<input name="phone" type="tel" autoComplete="tel" placeholder="For delivery updates" /></label>
               <label className="wide">Address<input name="addressLine1" required autoComplete="address-line1" /></label>
               <label className="wide">Apartment, suite, or delivery note<input name="addressLine2" autoComplete="address-line2" /></label>
@@ -200,11 +197,11 @@ export function CheckoutPage() {
               </div>
             </div>
             <label className="checkbox-row checkout-checkbox">
-              <input name="marketingOptIn" type="checkbox" defaultChecked />
+              <input name="marketingOptIn" type="checkbox" />
               Send me collection notes and early access updates.
             </label>
-            {checkoutError && <p className="api-status api-status-error">{checkoutError}</p>}
-            <button className="primary-button" type="submit" disabled={isSubmitting}>
+            {checkoutError && <p className="api-status api-status-error" role="alert">{checkoutError}</p>}
+            <button className="primary-button" type="submit" disabled={isSubmitting || !quoteState.quote?.canCheckout}>
               {isSubmitting ? "Preparing secure payment..." : "Continue to secure payment"}
             </button>
           </form>
@@ -212,21 +209,9 @@ export function CheckoutPage() {
         </section>
         <aside className="summary-card">
           <h2>Order Summary</h2>
-          {hasCartItems ? (
-            cartProducts.map((item) => (
-              <div key={item.productId}>
-                <span>{item.product.name} / {item.color} x {item.quantity}</span>
-                <strong>{formatMoney(item.product.price * item.quantity, currency, exchangeRates)}</strong>
-              </div>
-            ))
-          ) : (
-            <p className="summary-note">No checkout is needed yet. Add a piece to see shipping, taxes, and payment options.</p>
-          )}
-          <div><span>Shipping</span><strong>{hasCartItems ? (shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)) : "Not calculated"}</strong></div>
-          {hasGiftWrap && (
-            <div><span>Gift packaging</span><strong>Included by request</strong></div>
-          )}
-          <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
+          {hasCartItems && <PromoCodeField quote={quoteState.quote} loading={quoteState.loading} disabled={isSubmitting} />}
+          {hasCartItems ? <QuoteSummary {...quoteState} /> : <p className="summary-note">Add a piece to see delivery and payment options.</p>}
+          {hasGiftWrap && <div><span>Gift packaging</span><strong>Included by request</strong></div>}
         </aside>
       </div>
     </div>

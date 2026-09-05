@@ -1,3 +1,8 @@
+import { AdminGlobalSearch } from "./AdminGlobalSearch";
+import { OrderFiltersPanel } from "./OrderFiltersPanel";
+import { emptyOrderFilters, lowStockThreshold, type OrderFilters } from "../../packages/admin/src/workflows";
+import { BulkProductImportPanel } from "./BulkProductImportPanel";
+import { PromoCodesPanel } from "./PromoCodesPanel";
 import {
   Activity,
   ArrowDown,
@@ -21,7 +26,6 @@ import {
   MailCheck,
   PackagePlus,
   Pilcrow,
-  Search,
   Send,
   Settings,
   ShieldCheck,
@@ -34,8 +38,9 @@ import {
 import { type ChangeEvent, type ClipboardEvent, type DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { getApiBaseUrl } from "../api/config";
+import { invalidateCatalog } from "../api/catalog-events";
 import { CustomSelect } from "../components/CustomSelect";
-import { categories as fallbackCategories, products as fallbackProducts, type Collection, type CurrencyCode, type Product } from "../data/catalog";
+import { categories as fallbackCategories, type Collection, type CurrencyCode, type Product } from "../data/catalog";
 import { defaultExchangeRates, formatCurrencyAmount, formatMoney, type ExchangeRates } from "../utils/money";
 
 const apiBaseUrl = getApiBaseUrl();
@@ -43,30 +48,6 @@ const adminTokenStorageKey = "sekanae_admin_token";
 const adminSessionRestoreTimeoutMs = 4200;
 const productsPerPage = 8;
 const maxAdminImageUploadBytes = 8 * 1024 * 1024;
-const bulkProductCsvColumns = [
-  "name",
-  "category",
-  "collection",
-  "price",
-  "colors",
-  "material",
-  "occasion",
-  "imageFiles",
-  "description",
-  "detailsMaterials",
-  "detailsDimensions",
-  "detailsCare",
-  "detailsShipping",
-  "stock",
-  "rating",
-  "reviews",
-  "tags",
-  "isNew",
-  "isBridalPreview",
-  "status",
-] as const;
-const optionalBulkProductCsvColumns = new Set<string>(["status"]);
-
 const orderStatuses = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
 const paymentStatuses = ["unpaid", "requires_action", "paid", "failed", "refunded"] as const;
 const conciergeStatuses = ["open", "in_progress", "resolved", "closed"] as const;
@@ -123,21 +104,6 @@ type ProductDraft = {
   isBridalPreview: boolean;
   tags: string;
   status: "draft" | "published";
-};
-
-type BulkProductImportRow = {
-  rowNumber: number;
-  draft: ProductDraft;
-  imageFileNames: string[];
-  errors: string[];
-};
-
-type BulkProductImportHistoryItem = {
-  id: string;
-  importedCount: number;
-  failedCount: number;
-  createdAt: string;
-  summary: string;
 };
 
 type Address = {
@@ -382,89 +348,6 @@ function parseList(value: string) {
     .filter(Boolean);
 }
 
-function parsePipeList(value: string) {
-  return value
-    .split("|")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseCsv(text: string) {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let isQuoted = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    const nextCharacter = text[index + 1];
-
-    if (character === "\"") {
-      if (isQuoted && nextCharacter === "\"") {
-        cell += "\"";
-        index += 1;
-      } else {
-        isQuoted = !isQuoted;
-      }
-      continue;
-    }
-
-    if (character === "," && !isQuoted) {
-      row.push(cell.trim());
-      cell = "";
-      continue;
-    }
-
-    if ((character === "\n" || character === "\r") && !isQuoted) {
-      if (character === "\r" && nextCharacter === "\n") {
-        index += 1;
-      }
-      row.push(cell.trim());
-      if (row.some(Boolean)) {
-        rows.push(row);
-      }
-      row = [];
-      cell = "";
-      continue;
-    }
-
-    cell += character;
-  }
-
-  row.push(cell.trim());
-  if (row.some(Boolean)) {
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function csvEscape(value: string | number | boolean) {
-  const text = String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
-}
-
-function parseBoolean(value: string) {
-  return ["true", "yes", "1", "y"].includes(value.trim().toLowerCase());
-}
-
-function readTextFile(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.addEventListener("load", () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error(`Unable to read ${file.name}.`));
-    });
-    reader.addEventListener("error", () => reject(new Error(`Unable to read ${file.name}.`)));
-    reader.readAsText(file);
-  });
-}
-
 function fileToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -543,75 +426,6 @@ function createProductDraft(): ProductDraft {
     tags: "",
     status: "draft",
   };
-}
-
-function productImportRowsFromCsv(text: string): BulkProductImportRow[] {
-  const rows = parseCsv(text);
-  const [headerRow, ...dataRows] = rows;
-
-  if (!headerRow) {
-    throw new Error("Upload a CSV with product headers.");
-  }
-
-  const headers = headerRow.map((header) => header.trim());
-  const missingHeaders = bulkProductCsvColumns.filter((column) => !optionalBulkProductCsvColumns.has(column) && !headers.includes(column));
-
-  if (missingHeaders.length) {
-    throw new Error(`Missing CSV column${missingHeaders.length === 1 ? "" : "s"}: ${missingHeaders.join(", ")}`);
-  }
-
-  return dataRows.map((row, index) => {
-    const record = Object.fromEntries(headers.map((header, headerIndex) => [header, row[headerIndex] ?? ""]));
-    const draft = createProductDraft();
-    const imageFileNames = parsePipeList(record.imageFiles);
-    const errors: string[] = [];
-
-    draft.name = record.name;
-    draft.id = productIdFromName(record.name);
-    draft.slug = slugify(record.name);
-    draft.category = record.category || draft.category;
-    draft.collection = record.collection;
-    draft.price = record.price;
-    draft.colors = record.colors;
-    draft.material = record.material;
-    draft.occasion = record.occasion;
-    draft.description = record.description;
-    draft.detailsMaterials = record.detailsMaterials;
-    draft.detailsDimensions = record.detailsDimensions;
-    draft.detailsCare = record.detailsCare;
-    draft.detailsShipping = record.detailsShipping;
-    draft.stock = record.stock || "0";
-    draft.rating = record.rating || "0";
-    draft.reviews = record.reviews || "0";
-    draft.tags = record.tags;
-    draft.isNew = parseBoolean(record.isNew);
-    draft.isBridalPreview = parseBoolean(record.isBridalPreview);
-    draft.status = record.status === "published" ? "published" : "draft";
-
-    if (!draft.name.trim()) errors.push("Name is required.");
-    if (!draft.category.trim()) errors.push("Category is required.");
-    if (!draft.collection.trim()) errors.push("Collection is required.");
-    if (!draft.price.trim() || Number.isNaN(Number(draft.price))) errors.push("Price must be a number.");
-    if (!parseList(draft.colors).length) errors.push("Add at least one color.");
-    if (!draft.material.trim()) errors.push("Material is required.");
-    if (!parseList(draft.occasion).length) errors.push("Add at least one occasion.");
-    if (!imageFileNames.length) errors.push("Add at least one image file name.");
-    if (!draft.description.trim()) errors.push("Description is required.");
-    if (!draft.detailsMaterials.trim()) errors.push("Details materials is required.");
-    if (!draft.detailsDimensions.trim()) errors.push("Details dimensions is required.");
-    if (!draft.detailsCare.trim()) errors.push("Details care is required.");
-    if (!draft.detailsShipping.trim()) errors.push("Details shipping is required.");
-    if (Number.isNaN(Number(draft.stock))) errors.push("Stock must be a number.");
-    if (Number.isNaN(Number(draft.rating))) errors.push("Rating must be a number.");
-    if (Number.isNaN(Number(draft.reviews))) errors.push("Reviews must be a number.");
-
-    return {
-      rowNumber: index + 2,
-      draft,
-      imageFileNames,
-      errors,
-    };
-  });
 }
 
 function createCollectionDraft(): CollectionDraft {
@@ -820,21 +634,15 @@ export function AdminPage() {
   const categoryFormRef = useRef<HTMLFormElement | null>(null);
   const contentFormRef = useRef<HTMLFormElement | null>(null);
   const productImageInputRef = useRef<HTMLInputElement | null>(null);
-  const bulkProductCsvInputRef = useRef<HTMLInputElement | null>(null);
-  const bulkProductImageInputRef = useRef<HTMLInputElement | null>(null);
   const collectionImageInputRef = useRef<HTMLInputElement | null>(null);
   const categoryImageInputRef = useRef<HTMLInputElement | null>(null);
-  const [adminProducts, setAdminProducts] = useState<Product[]>(fallbackProducts);
+  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const productsRequestId = useRef(0);
   const [productDraft, setProductDraft] = useState<ProductDraft>(() => createProductDraft());
   const [productMessage, setProductMessage] = useState<string | null>(null);
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [productImageError, setProductImageError] = useState<string | null>(null);
-  const [bulkProductRows, setBulkProductRows] = useState<BulkProductImportRow[]>([]);
-  const [bulkProductImages, setBulkProductImages] = useState<File[]>([]);
-  const [bulkProductMessage, setBulkProductMessage] = useState<string | null>(null);
-  const [bulkProductHistory, setBulkProductHistory] = useState<BulkProductImportHistoryItem[]>([]);
-  const [isBulkImportingProducts, setIsBulkImportingProducts] = useState(false);
   const [customProductTag, setCustomProductTag] = useState("");
   const [customProductTagError, setCustomProductTagError] = useState<string | null>(null);
   const [inventoryDrafts, setInventoryDrafts] = useState<Record<string, string>>({});
@@ -849,8 +657,9 @@ export function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersTotal, setOrdersTotal] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderStatusFilter, setOrderStatusFilter] = useState<"" | OrderStatus>("");
-  const [orderEmailFilter, setOrderEmailFilter] = useState("");
+  const [orderFilters, setOrderFilters] = useState<OrderFilters>(emptyOrderFilters);
+  const [orderPage, setOrderPage] = useState(1);
+  const ordersRequestId = useRef(0);
   const [ordersMessage, setOrdersMessage] = useState<string | null>(null);
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
   const [orderStatus, setOrderStatus] = useState<OrderStatus>("pending");
@@ -912,7 +721,7 @@ export function AdminPage() {
       const matchesCategory = !productCategoryFilter || product.category === productCategoryFilter;
       const matchesStatus = !productStatusFilter || (product.status ?? "published") === productStatusFilter;
       const matchesStock = productStockFilter === "low"
-        ? product.stock > 0 && product.stock <= 5
+        ? product.stock <= lowStockThreshold
         : productStockFilter === "out"
           ? product.stock === 0
           : true;
@@ -931,7 +740,7 @@ export function AdminPage() {
     [adminProducts, selectedProductIds],
   );
   const lowStockProducts = useMemo(
-    () => adminProducts.filter((product) => product.stock > 0 && product.stock <= 5),
+    () => adminProducts.filter((product) => product.status === "published" && product.stock <= lowStockThreshold),
     [adminProducts],
   );
   const categoryOptions = useMemo(
@@ -943,15 +752,6 @@ export function AdminPage() {
     ].filter(Boolean))].sort(),
     [adminProducts, categories, productDraft.category],
   );
-  const bulkProductImportStatus = useMemo(() => {
-    const validRows = bulkProductRows.filter((row) => !row.errors.length);
-    const invalidRows = bulkProductRows.length - validRows.length;
-
-    return {
-      validRows,
-      invalidRows,
-    };
-  }, [bulkProductRows]);
   const tagOptions = useMemo(
     () => [...new Set([
       "New arrival",
@@ -1143,21 +943,22 @@ export function AdminPage() {
 
   async function readProducts() {
     if (!adminToken) {
-      setAdminProducts(fallbackProducts);
-      setInventoryDrafts(Object.fromEntries(fallbackProducts.map((product) => [product.id, String(product.stock)])));
       return;
     }
 
+    const requestId = ++productsRequestId.current;
     try {
       const payload = await readAdmin<Product[]>("/api/admin/products");
+      if (requestId !== productsRequestId.current) return false;
       const productList = payload.data;
       setAdminProducts(productList);
       setInventoryDrafts(Object.fromEntries(productList.map((product) => [product.id, String(product.stock)])));
       setProductMessage(null);
+      return true;
     } catch {
-      setAdminProducts(fallbackProducts);
-      setInventoryDrafts(Object.fromEntries(fallbackProducts.map((product) => [product.id, String(product.stock)])));
-      setProductMessage("Admin products are unavailable, so the studio is showing the local fallback catalog.");
+      if (requestId !== productsRequestId.current) return false;
+      setProductMessage("Couldn’t refresh admin products. Please refresh to try again.");
+      return false;
     }
   }
 
@@ -1313,159 +1114,6 @@ export function AdminPage() {
     categoryFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function downloadBulkProductTemplate() {
-    const sampleRow = [
-      "Monde Structured Top Handle",
-      "Handbags",
-      "Voyage Essentials",
-      "640",
-      "#3c3434, Black",
-      "Italian leather",
-      "Work, Travel",
-      "monde-front.jpg|monde-side.jpg",
-      "Structured top-handle bag for polished daily movement.",
-      "Italian leather, cotton lining",
-      "28cm W x 20cm H x 10cm D",
-      "Store in dust bag and wipe clean.",
-      "Ships in 2-4 business days.",
-      "12",
-      "0",
-      "0",
-      "New arrival",
-      "true",
-      "false",
-      "draft",
-    ];
-    const csv = [
-      bulkProductCsvColumns.join(","),
-      sampleRow.map(csvEscape).join(","),
-    ].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = "sekanae-product-bulk-template.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function loadBulkProductCsv(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) {
-      return;
-    }
-
-    try {
-      const rows = productImportRowsFromCsv(await readTextFile(file));
-      setBulkProductRows(rows);
-      setBulkProductMessage(`${rows.length} product row${rows.length === 1 ? "" : "s"} loaded from ${file.name}.`);
-    } catch (error) {
-      setBulkProductRows([]);
-      setBulkProductMessage(error instanceof Error ? error.message : "Unable to read product CSV.");
-    }
-  }
-
-  function selectBulkProductImages(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
-
-    setBulkProductImages(files);
-    setBulkProductMessage(`${files.length} product image file${files.length === 1 ? "" : "s"} selected.`);
-  }
-
-  async function importBulkProducts() {
-    if (!adminToken) {
-      setBulkProductMessage("Sign in again to import products.");
-      return;
-    }
-
-    const validRows = bulkProductImportStatus.validRows;
-    if (!validRows.length) {
-      setBulkProductMessage("Load a valid product CSV before importing.");
-      return;
-    }
-
-    const imageFilesByName = new Map(bulkProductImages.map((file) => [file.name, file]));
-    const missingImageNames = [...new Set(validRows.flatMap((row) => row.imageFileNames))]
-      .filter((fileName) => !imageFilesByName.has(fileName));
-
-    if (missingImageNames.length) {
-      setBulkProductMessage(`Select these image files before importing: ${missingImageNames.join(", ")}`);
-      return;
-    }
-
-    setIsBulkImportingProducts(true);
-    setBulkProductMessage("Uploading images and creating products...");
-
-    const uploadedImageUrls = new Map<string, string>();
-    let importedCount = 0;
-    const failedRows: string[] = [];
-
-    try {
-      for (const row of validRows) {
-        try {
-          const imageUrls: string[] = [];
-
-          for (const fileName of row.imageFileNames) {
-            const cachedUrl = uploadedImageUrls.get(fileName);
-
-            if (cachedUrl) {
-              imageUrls.push(cachedUrl);
-              continue;
-            }
-
-            const file = imageFilesByName.get(fileName);
-            if (!file) {
-              throw new Error(`${fileName} was not selected.`);
-            }
-
-            const [uploadedUrl] = await uploadAdminImages([file]);
-            uploadedImageUrls.set(fileName, uploadedUrl);
-            imageUrls.push(uploadedUrl);
-          }
-
-          const product = draftToProduct({
-            ...row.draft,
-            images: imageUrls.join("\n"),
-          });
-
-          await readAdmin<Product>("/api/admin/products", {
-            method: "POST",
-            body: JSON.stringify(product),
-          });
-          importedCount += 1;
-        } catch (error) {
-          failedRows.push(`Row ${row.rowNumber}: ${error instanceof Error ? error.message : "Import failed."}`);
-        }
-      }
-
-      await readProducts();
-      await readDashboard();
-      await readAudit();
-
-      const summary = [
-        `${importedCount} product${importedCount === 1 ? "" : "s"} imported.`,
-        failedRows.length ? `${failedRows.length} failed: ${failedRows.join(" ")}` : "",
-      ].filter(Boolean).join(" ");
-
-      setBulkProductHistory((current) => [
-        {
-          id: `${Date.now()}`,
-          importedCount,
-          failedCount: failedRows.length,
-          createdAt: new Date().toISOString(),
-          summary,
-        },
-        ...current,
-      ].slice(0, 5));
-      setBulkProductMessage(summary);
-    } finally {
-      setIsBulkImportingProducts(false);
-    }
-  }
-
   async function saveProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1502,6 +1150,13 @@ export function AdminPage() {
     }
   }
 
+  function removeArchivedProduct(productId: string) {
+    productsRequestId.current += 1;
+    setAdminProducts((current) => current.filter((product) => product.id !== productId));
+    setSelectedProductIds((current) => current.filter((id) => id !== productId));
+    invalidateCatalog(productId);
+  }
+
   async function archiveProduct(productId: string) {
     if (!window.confirm("Archive this product? It will be hidden from the live catalog.")) {
       return;
@@ -1511,8 +1166,9 @@ export function AdminPage() {
       await readAdmin<{ archived: boolean }>(`/api/admin/products/${encodeURIComponent(productId)}`, {
         method: "DELETE",
       });
-      setProductMessage("Product archived.");
-      await readProducts();
+      removeArchivedProduct(productId);
+      const refreshed = await readProducts();
+      setProductMessage(refreshed ? "Product archived." : "Product archived, but the list couldn’t refresh. Please refresh to try again.");
       await readDashboard();
       await readAudit();
       if (routePath.startsWith("products/") && routePath !== "products") {
@@ -1569,6 +1225,7 @@ export function AdminPage() {
           await readAdmin<{ archived: boolean }>(`/api/admin/products/${encodeURIComponent(product.id)}`, {
             method: "DELETE",
           });
+          removeArchivedProduct(product.id);
           continue;
         }
 
@@ -1889,7 +1546,7 @@ export function AdminPage() {
     }
   }
 
-  async function readOrders() {
+  async function readOrders(filters = orderFilters, nextPage = orderPage) {
     if (!adminToken) {
       return;
     }
@@ -1897,29 +1554,27 @@ export function AdminPage() {
     setIsLoadingOrders(true);
     setOrdersMessage(null);
 
-    const query = new URLSearchParams({ limit: "50" });
-
-    if (orderStatusFilter) {
-      query.set("status", orderStatusFilter);
-    }
-
-    if (orderEmailFilter.trim()) {
-      query.set("email", orderEmailFilter.trim());
-    }
+    const requestId = ++ordersRequestId.current;
+    const query = new URLSearchParams({ limit: "25", offset: String((nextPage - 1) * 25) });
+    for (const [key, value] of Object.entries(filters)) { if (value) query.set(key, value); }
 
     try {
       const payload = await readAdmin<Order[]>(`/api/admin/orders?${query.toString()}`);
+      if (requestId !== ordersRequestId.current) return;
+      setOrderPage(nextPage);
+      setOrderFilters(filters);
       setOrders(payload.data);
       setOrdersTotal(payload.meta?.total ?? payload.data.length);
       if (!payload.data.length) {
         setOrdersMessage("No orders match this view yet.");
       }
     } catch (error) {
+      if (requestId !== ordersRequestId.current) return;
       setOrders([]);
       setOrdersTotal(0);
       setOrdersMessage(error instanceof Error ? error.message : "Orders are unavailable.");
     } finally {
-      setIsLoadingOrders(false);
+      if (requestId === ordersRequestId.current) setIsLoadingOrders(false);
     }
   }
 
@@ -1963,6 +1618,13 @@ export function AdminPage() {
       setCustomersMessage(error instanceof Error ? error.message : "Customer detail is unavailable.");
     }
   }
+
+  useEffect(() => {
+    const orderId = new URLSearchParams(location.search).get("order");
+    if (isAuthenticated && adminToken && routePath === "orders" && orderId) void readOrderDetail(orderId);
+    // A global search result selects the requested order once per navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, routePath, isAuthenticated, adminToken]);
 
   async function readOrderDetail(orderId: string) {
     try {
@@ -2346,7 +2008,7 @@ export function AdminPage() {
       {
         label: "Low Stock",
         value: String(metrics?.lowStock ?? "-"),
-        note: "Inventory at 5 or below",
+        note: `Published inventory at ${lowStockThreshold} or below`,
       },
       {
         label: "Subscribers",
@@ -2543,70 +2205,19 @@ export function AdminPage() {
               Apply
             </button>
           </div>
-          <div className="admin-bulk-upload">
-            <div>
-              <strong>Bulk add products</strong>
-              <p>
-                Upload a CSV, then select the matching image files from your computer. The imageFiles column should list file names separated by |.
-              </p>
-            </div>
-            <div className="admin-bulk-actions">
-              <button type="button" onClick={downloadBulkProductTemplate}>
-                <ClipboardList size={15} /> Template
-              </button>
-              <button type="button" onClick={() => bulkProductCsvInputRef.current?.click()} disabled={isBulkImportingProducts}>
-                <Upload size={15} /> Select CSV
-              </button>
-              <input
-                ref={bulkProductCsvInputRef}
-                className="admin-upload-file-input"
-                type="file"
-                accept=".csv,text/csv"
-                onChange={loadBulkProductCsv}
-                disabled={isBulkImportingProducts}
-              />
-              <button type="button" onClick={() => bulkProductImageInputRef.current?.click()} disabled={isBulkImportingProducts}>
-                <Upload size={15} /> Select images
-              </button>
-              <input
-                ref={bulkProductImageInputRef}
-                className="admin-upload-file-input"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={selectBulkProductImages}
-                disabled={isBulkImportingProducts}
-              />
-              <button type="button" onClick={importBulkProducts} disabled={isBulkImportingProducts || !bulkProductImportStatus.validRows.length}>
-                {isBulkImportingProducts ? "Importing" : "Import products"}
-              </button>
-            </div>
-            {(bulkProductRows.length > 0 || bulkProductImages.length > 0) && (
-              <div className="admin-bulk-summary">
-                <span>{bulkProductImportStatus.validRows.length} valid row{bulkProductImportStatus.validRows.length === 1 ? "" : "s"}</span>
-                <span>{bulkProductImportStatus.invalidRows} row{bulkProductImportStatus.invalidRows === 1 ? "" : "s"} need fixes</span>
-                <span>{bulkProductImages.length} image file{bulkProductImages.length === 1 ? "" : "s"} selected</span>
-              </div>
-            )}
-            {bulkProductRows.some((row) => row.errors.length) && (
-              <div className="admin-bulk-errors" role="alert">
-                {bulkProductRows.filter((row) => row.errors.length).slice(0, 4).map((row) => (
-                  <span key={row.rowNumber}>Row {row.rowNumber}: {row.errors.join(" ")}</span>
-                ))}
-              </div>
-            )}
-            {bulkProductMessage && <p className="admin-status admin-status-tight">{bulkProductMessage}</p>}
-            {bulkProductHistory.length > 0 && (
-              <div className="admin-bulk-history">
-                <strong>Recent imports</strong>
-                {bulkProductHistory.map((item) => (
-                  <span key={item.id}>
-                    {formatDate(item.createdAt)}: {item.importedCount} imported, {item.failedCount} failed
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
+          <BulkProductImportPanel
+            products={adminProducts}
+            request={readAdmin}
+            uploadImages={uploadAdminImages}
+            importProduct={(product) => readAdmin<Product>("/api/admin/products/import", {
+              method: "POST", body: JSON.stringify(product),
+            })}
+            onImported={async () => {
+              await readProducts();
+              await readDashboard();
+              await readAudit();
+            }}
+          />
           <div className="admin-table admin-product-table">
             <div className="admin-table-head">
               <span>Select</span><span>Product</span><span>Status</span><span>Category</span><span>Inventory</span><span>Actions</span>
@@ -2629,7 +2240,7 @@ export function AdminPage() {
                     {labelize(product.status ?? "published")}
                   </span>
                 </span>
-                <span>{product.category}{product.stock > 0 && product.stock <= 5 ? <small>Low stock</small> : null}</span>
+                <span>{product.category}{product.stock <= lowStockThreshold ? <small>Low stock</small> : null}</span>
                 <span className="admin-stock-control">
                   <input
                     type="number"
@@ -3013,43 +2624,28 @@ export function AdminPage() {
         <article className="admin-panel">
           <div className="panel-heading">
             <h2>Orders</h2>
-            <button type="button" onClick={readOrders} disabled={isLoadingOrders}>
+            <button type="button" onClick={() => void readOrders()} disabled={isLoadingOrders}>
               {isLoadingOrders ? "Refreshing" : "Refresh"}
             </button>
           </div>
-          <form className="admin-filters" onSubmit={(event) => { event.preventDefault(); void readOrders(); }}>
-            <CustomSelect
-              label="Status"
-              className="admin-custom-select"
-              value={orderStatusFilter}
-              onChange={(value) => setOrderStatusFilter(value as "" | OrderStatus)}
-              options={[
-                { label: "All", value: "" },
-                ...labelOptions(orderStatuses),
-              ]}
-            />
-            <label>
-              Customer email
-              <input
-                type="email"
-                value={orderEmailFilter}
-                onChange={(event) => setOrderEmailFilter(event.target.value)}
-                placeholder="client@example.com"
-              />
-            </label>
-            <button type="submit">Apply</button>
-          </form>
+          <OrderFiltersPanel filters={orderFilters} request={readAdmin} loading={isLoadingOrders}
+            onApply={(filters) => { setSelectedOrder(null); void readOrders(filters, 1); }} />
           <p className="admin-status">{ordersTotal} orders in this view</p>
           <div className="order-list admin-order-list">
             {orders.map((order) => (
               <div key={order.id}>
-                <strong>{order.id.slice(0, 8)}</strong>
+                <strong title={order.id}>#{order.id.slice(0, 8)}</strong>
                 <span>{order.customer.name}</span>
                 <span>{formatCurrencyAmount(order.total, order.currency)}</span>
-                <em>{labelize(order.status)}</em>
+                <em>{labelize(order.status)} · {labelize(order.paymentStatus)}</em>
                 <button type="button" onClick={() => readOrderDetail(order.id)}>Open</button>
               </div>
             ))}
+          </div>
+          <div className="admin-bulk-actions admin-orders-pagination">
+            <button type="button" disabled={isLoadingOrders || orderPage <= 1} onClick={() => void readOrders(orderFilters, orderPage - 1)}>Previous orders</button>
+            <span>Page {orderPage} of {Math.max(1, Math.ceil(ordersTotal / 25))}</span>
+            <button type="button" disabled={isLoadingOrders || orderPage * 25 >= ordersTotal} onClick={() => void readOrders(orderFilters, orderPage + 1)}>Next orders</button>
           </div>
           {ordersMessage && <p className="admin-status">{ordersMessage}</p>}
         </article>
@@ -3220,10 +2816,10 @@ export function AdminPage() {
           <div className="order-list admin-order-list">
             {(selectedCustomer.orders ?? []).map((order) => (
               <div key={order.id}>
-                <strong>{order.id.slice(0, 8)}</strong>
+                <strong title={order.id}>#{order.id.slice(0, 8)}</strong>
                 <span>{formatDate(order.createdAt)}</span>
                 <span>{formatCurrencyAmount(order.total, order.currency)}</span>
-                <em>{labelize(order.status)}</em>
+                <em>{labelize(order.status)} · {labelize(order.paymentStatus)}</em>
                 <button type="button" onClick={() => {
                   setSelectedOrder(order);
                   setOrderStatus(order.status);
@@ -3655,6 +3251,7 @@ export function AdminPage() {
   function renderSettings() {
     return (
       <section className="admin-grid admin-grid-wide">
+        <PromoCodesPanel token={adminToken} />
         <article className="admin-panel">
           <div className="panel-heading">
             <div>
@@ -4135,10 +3732,7 @@ export function AdminPage() {
             <p className="microcopy">Admin Studio</p>
             <h1>{getPageTitle(routePath)}</h1>
           </div>
-          <div className="admin-search">
-            <Search size={16} />
-            <input placeholder="Search products, orders, clients" />
-          </div>
+          <AdminGlobalSearch request={readAdmin} products={adminProducts} adminBase={adminBase} />
           <button className="admin-sign-out" type="button" onClick={signOut}>
             Sign out
           </button>

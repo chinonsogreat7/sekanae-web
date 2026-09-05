@@ -1,3 +1,4 @@
+import { evaluatePromo, getPromoCode } from "./promo-service.js";
 import { baseCurrency, type CurrencyCode } from "../../../packages/catalog/src/index.js";
 import { getStoreSettings } from "./settings-service.js";
 
@@ -6,6 +7,8 @@ export type { CurrencyCode };
 export type OrderPricing = {
   currency: CurrencyCode;
   subtotal: number;
+  discount: number;
+  promoCode?: string;
   shipping: number;
   tax: number;
   total: number;
@@ -30,16 +33,19 @@ function includedTaxAmount(grossAmount: number, taxRate: number) {
   return roundMoney(grossAmount - grossAmount / (1 + taxRate));
 }
 
-export async function calculateOrderPricing(subtotal: number, currency?: CurrencyCode): Promise<OrderPricing> {
+export async function calculateOrderPricing(subtotal: number, currency?: CurrencyCode, promoCode?: string): Promise<OrderPricing> {
   const settings = await getStoreSettings();
   const selectedCurrency = currency ?? settings.defaultCurrency as CurrencyCode;
   const shipping = convertFromBaseCurrency(settings.defaultShippingAmount, selectedCurrency, settings.exchangeRates);
-  const taxableAmount = subtotal + shipping;
+  const promo = promoCode ? await getPromoCode(promoCode) : undefined;
+  const promotion = promoCode ? evaluatePromo(promo, subtotal, convertFromBaseCurrency(promo?.minimumSubtotal ?? 0, selectedCurrency, settings.exchangeRates)) : { discount: 0 };
+  const taxableAmount = roundMoney(subtotal - promotion.discount + shipping);
 
   if (settings.vatIncluded) {
     return {
       currency: selectedCurrency,
       subtotal: roundMoney(subtotal),
+      ...promotion,
       shipping,
       tax: includedTaxAmount(taxableAmount, settings.vatRate),
       total: roundMoney(taxableAmount),
@@ -53,6 +59,7 @@ export async function calculateOrderPricing(subtotal: number, currency?: Currenc
   return {
     currency: selectedCurrency,
     subtotal: roundMoney(subtotal),
+    ...promotion,
     shipping,
     tax,
     total: roundMoney(taxableAmount + tax),

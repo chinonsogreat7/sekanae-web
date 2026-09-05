@@ -8,10 +8,11 @@ import {
 import { clearCustomerCart, getCustomerCart, replaceCustomerCart } from "../api/customerCart";
 import { getCustomerWishlist, replaceCustomerWishlist } from "../api/customerWishlist";
 import { getApiBaseUrl } from "../api/config";
-import { products, type CurrencyCode, type Product } from "../data/catalog";
+import { type CurrencyCode, type Product } from "../data/catalog";
 import { defaultExchangeRates, type ExchangeRates } from "../utils/money";
 import { StoreContext } from "./store-context";
 import type { AccountNotice, AccountPromptMode, CartItem, CustomerAccount, MarketSettingsResponse, StoreContextValue } from "./store-types";
+import { useCatalog } from "./CatalogContext";
 const cartStorageKey = "sekanae_cart";
 const wishlistStorageKey = "sekanae_wishlist";
 const customerStorageKey = "sekanae_customer_account";
@@ -73,10 +74,18 @@ function readStorage<TValue>(key: string, fallback: TValue): TValue {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { products } = useCatalog();
   const [currency, setCurrency] = useState<CurrencyCode>("EUR");
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(defaultExchangeRates);
   const [defaultShippingAmount, setDefaultShippingAmount] = useState(35);
   const [cartItems, setCartItems] = useState<CartItem[]>(() => readStorage<CartItem[]>(cartStorageKey, []));
+  const [promoCode, setPromoCode] = useState<string>(() => {
+    const saved = readStorage<unknown>("sekanae_promo_code", "");
+    return typeof saved === "string" ? saved.slice(0, 40) : "";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("sekanae_promo_code", JSON.stringify(promoCode)); } catch { /* Keep the code in memory when storage is unavailable. */ }
+  }, [promoCode]);
   const [wishlist, setWishlist] = useState<string[]>(() => readStorage<string[]>(wishlistStorageKey, []));
   const [customerAccount, setCustomerAccount] = useState<CustomerAccount | null>(() =>
     readStorage<CustomerAccount | null>(customerStorageKey, null)
@@ -298,7 +307,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return product ? { ...item, product } : null;
         })
         .filter((item): item is CartItem & { product: Product } => Boolean(item)),
-    [cartItems]
+    [cartItems, products]
   );
 
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
@@ -308,7 +317,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       wishlist
         .map((productId) => products.find((product) => product.id === productId))
         .filter((product): product is Product => Boolean(product)),
-    [wishlist],
+    [wishlist, products],
   );
 
   function getDefaultColor(productId: string, color?: string) {
@@ -323,7 +332,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (existing) {
         return items.map((item) =>
           item.productId === productId && item.color === selectedColor
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: Math.min(99, item.quantity + 1) }
             : item
         );
       }
@@ -353,7 +362,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     setCartItems((items) =>
       items.map((item) =>
-        item.productId === productId && (!color || item.color === color) ? { ...item, quantity } : item
+        item.productId === productId && (!color || item.color === color) ? { ...item, quantity: Math.min(99, quantity) } : item
       )
     );
   }
@@ -414,6 +423,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   function clearCart() {
+    setPromoCode("");
     setCartItems([]);
     if (customerToken) {
       void clearCustomerCart(customerToken).catch(() => undefined);
@@ -586,6 +596,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     exchangeRates,
     defaultShippingAmount,
     cartItems,
+    promoCode,
+    setPromoCode,
     wishlist,
     customerAccount,
     cartProducts,

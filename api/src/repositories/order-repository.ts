@@ -19,6 +19,8 @@ export type OrderRow = {
   customer_phone: string | null;
   currency: CurrencyCode;
   subtotal_cents: number;
+  discount_cents: number;
+  promo_code: string | null;
   shipping_cents: number;
   tax_cents: number;
   tax_rate: string;
@@ -65,6 +67,8 @@ export function mapOrderFromRows(row: OrderRow, items: OrderItemRow[]): Order {
     },
     currency: row.currency,
     subtotal: fromCents(row.subtotal_cents),
+    discount: fromCents(row.discount_cents),
+    promoCode: row.promo_code ?? undefined,
     shipping: fromCents(row.shipping_cents),
     tax: fromCents(row.tax_cents),
     total: fromCents(row.total_cents),
@@ -146,9 +150,11 @@ export async function createOrderInDatabase(input: CreateOrderInput): Promise<Or
           total_cents,
           shipping_address,
           billing_address,
-          notes
+          notes,
+          discount_cents,
+          promo_code
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         returning *
       `,
       [
@@ -166,6 +172,8 @@ export async function createOrderInDatabase(input: CreateOrderInput): Promise<Or
         input.shippingAddress,
         input.billingAddress,
         input.notes,
+        toCents(input.discount),
+        input.promoCode,
       ],
     );
 
@@ -257,6 +265,24 @@ export async function listOrdersFromDatabase(filters: OrderListFilters): Promise
     where.push(`lower(customer_email) = lower($${values.length})`);
   }
 
+  if (filters.q?.trim()) {
+    values.push(`%${filters.q.trim().replace(/[\\%_]/g, "\\$&")}%`);
+    where.push(`(id ilike $${values.length} or customer_name ilike $${values.length} or customer_email ilike $${values.length})`);
+  }
+  if (filters.paymentStatus) {
+    values.push(filters.paymentStatus);
+    where.push(`payment_status = $${values.length}`);
+  }
+  // Admin date filters use inclusive UTC calendar days, independent of DB timezone.
+  if (filters.from) {
+    values.push(`${filters.from}T00:00:00.000Z`);
+    where.push(`created_at >= $${values.length}::timestamptz`);
+  }
+  if (filters.to) {
+    values.push(new Date(Date.parse(`${filters.to}T00:00:00.000Z`) + 86400000).toISOString());
+    where.push(`created_at < $${values.length}::timestamptz`);
+  }
+
   const whereSql = where.length > 0 ? `where ${where.join(" and ")}` : "";
   const limit = filters.limit ?? 50;
   const offset = filters.offset ?? 0;
@@ -271,7 +297,7 @@ export async function listOrdersFromDatabase(filters: OrderListFilters): Promise
       select *
       from orders
       ${whereSql}
-      order by created_at desc
+      order by created_at desc, id desc
       limit $${values.length + 1}
       offset $${values.length + 2}
     `,

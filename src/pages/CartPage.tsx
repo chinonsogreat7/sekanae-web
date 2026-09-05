@@ -1,13 +1,16 @@
+import { PromoCodeField } from "../components/PromoCodeField";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { QuoteSummary } from "../components/QuoteSummary";
+import { useCartQuote } from "../hooks/useCartQuote";
 import { PageMeta } from "../components/PageMeta";
 import { useStore } from "../context/store-context";
 import { formatMoney } from "../utils/money";
 
 export function CartPage() {
-  const { cartProducts, currency, exchangeRates, defaultShippingAmount, subtotal, updateQuantity, removeFromCart, toggleGiftWrap } = useStore();
-  const hasCartItems = cartProducts.length > 0;
-  const shipping = hasCartItems ? defaultShippingAmount : 0;
+  const { cartProducts, currency, exchangeRates, cartItems, updateQuantity, removeFromCart, toggleGiftWrap } = useStore();
+  const hasCartItems = cartItems.length > 0;
+  const quoteState = useCartQuote();
 
   return (
     <div className="page section-pad">
@@ -20,7 +23,7 @@ export function CartPage() {
         <section>
           <h1>Your Cart</h1>
           <p className="cart-intro">Review your SEKANAE pieces, select gift packaging, and continue to secure checkout.</p>
-          {cartProducts.length === 0 ? (
+          {!hasCartItems ? (
             <div className="empty-state">
               <h2>Your cart is quiet.</h2>
               <p>Discover pieces designed for every destination.</p>
@@ -29,7 +32,7 @@ export function CartPage() {
           ) : (
             <div className="cart-list">
               {cartProducts.map((item) => (
-                <article className="cart-item" key={item.productId}>
+                <article className="cart-item" key={`${item.productId}:${item.color}`}>
                   <img src={item.product.images[0]} alt={item.product.name} />
                   <div>
                     <h2>{item.product.name}</h2>
@@ -44,35 +47,31 @@ export function CartPage() {
                     </label>
                   </div>
                   <div className="quantity-control" aria-label={`${item.product.name} quantity`}>
-                    <button type="button" onClick={() => updateQuantity(item.productId, item.quantity - 1, item.color)} aria-label="Decrease quantity">
+                    <button type="button" onClick={() => updateQuantity(item.productId, item.quantity - 1, item.color)} aria-label={`Decrease ${item.product.name} ${item.color} quantity`}>
                       <Minus size={14} />
                     </button>
                     <span>{item.quantity}</span>
-                    <button type="button" onClick={() => updateQuantity(item.productId, item.quantity + 1, item.color)} aria-label="Increase quantity">
+                    <button type="button" onClick={() => updateQuantity(item.productId, item.quantity + 1, item.color)} disabled={item.quantity >= 99} aria-label={`Increase ${item.product.name} ${item.color} quantity`}>
                       <Plus size={14} />
                     </button>
                   </div>
                   <strong>{formatMoney(item.product.price * item.quantity, currency, exchangeRates)}</strong>
-                  <button className="icon-button" type="button" onClick={() => removeFromCart(item.productId, item.color)} aria-label="Remove item">
+                  <button className="icon-button" type="button" onClick={() => removeFromCart(item.productId, item.color)} aria-label={`Remove ${item.product.name} ${item.color}`}>
                     <Trash2 size={18} />
                   </button>
                 </article>
               ))}
+              {cartItems.filter((item) => !cartProducts.some((known) => known.productId === item.productId)).map((item) => <article className="cart-item" key={`${item.productId}:${item.color}`}><p>This piece is no longer available ({item.color}).</p><button type="button" className="secondary-button" onClick={() => removeFromCart(item.productId, item.color)}>Remove unavailable piece</button></article>)}
             </div>
           )}
         </section>
         <aside className="summary-card">
           <h2>Order Summary</h2>
-          <div><span>Subtotal</span><strong>{formatMoney(subtotal, currency, exchangeRates)}</strong></div>
+          {hasCartItems && <PromoCodeField quote={quoteState.quote} loading={quoteState.loading} />}
           {hasCartItems ? (
             <>
-              <div><span>International shipping</span><strong>{shipping === 0 ? "Complimentary" : formatMoney(shipping, currency, exchangeRates)}</strong></div>
-              <label>
-                Promo code
-                <input type="text" placeholder="Enter code" />
-              </label>
-              <div className="summary-total"><span>Total</span><strong>{formatMoney(subtotal + shipping, currency, exchangeRates)}</strong></div>
-              <Link to="/checkout" className="primary-button">Continue to checkout</Link>
+              <QuoteSummary {...quoteState} />
+              {quoteState.quote?.canCheckout ? <Link to="/checkout" className="primary-button">Continue to checkout</Link> : <button className="primary-button" type="button" disabled>Continue to checkout</button>}
             </>
           ) : (
             <>

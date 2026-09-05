@@ -38,6 +38,8 @@ export type CreateOrderRequest = {
   currency?: CurrencyCode;
   notes?: string;
   marketingOptIn?: boolean;
+  expectedTotal?: number;
+  promoCode?: string;
 };
 
 export type CreateOrderInput = {
@@ -47,6 +49,8 @@ export type CreateOrderInput = {
   notes?: string;
   currency: CurrencyCode;
   subtotal: number;
+  discount: number;
+  promoCode?: string;
   shipping: number;
   tax: number;
   total: number;
@@ -71,6 +75,8 @@ export type Order = {
   customer: CustomerInput;
   currency: CurrencyCode;
   subtotal: number;
+  discount: number;
+  promoCode?: string;
   shipping: number;
   tax: number;
   total: number;
@@ -89,6 +95,10 @@ export type Order = {
 };
 
 export type OrderListFilters = {
+  q?: string;
+  paymentStatus?: PaymentStatus;
+  from?: string;
+  to?: string;
   status?: OrderStatus;
   email?: string;
   limit?: number;
@@ -105,7 +115,7 @@ export type UpdateOrderInput = {
 
 export class OrderServiceError extends Error {
   constructor(
-    public readonly code: "DATABASE_REQUIRED" | "CART_NOT_CHECKOUT_READY",
+    public readonly code: "DATABASE_REQUIRED" | "CART_NOT_CHECKOUT_READY" | "PRICE_CHANGED",
     message: string,
     public readonly statusCode: number,
     public readonly details?: unknown,
@@ -130,7 +140,11 @@ export async function createOrder(request: CreateOrderRequest): Promise<Order> {
     );
   }
 
-  const pricing = await calculateOrderPricing(cart.subtotal, cart.currency);
+  const pricing = await calculateOrderPricing(cart.subtotal, cart.currency, request.promoCode);
+
+  if (request.expectedTotal !== undefined && Math.round(request.expectedTotal * 100) !== Math.round(pricing.total * 100)) {
+    throw new OrderServiceError("PRICE_CHANGED", "Your total has changed. Please review the updated summary and try again.", 409);
+  }
 
   const order = await createOrderInDatabase({
     customer: request.customer,
@@ -139,6 +153,8 @@ export async function createOrder(request: CreateOrderRequest): Promise<Order> {
     notes: request.notes,
     currency: pricing.currency,
     subtotal: pricing.subtotal,
+    discount: pricing.discount,
+    promoCode: pricing.promoCode,
     shipping: pricing.shipping,
     tax: pricing.tax,
     total: pricing.total,

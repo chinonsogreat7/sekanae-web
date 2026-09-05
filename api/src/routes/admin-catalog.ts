@@ -9,6 +9,7 @@ import {
   idParamSchema,
   inventoryBodySchema,
   productBodySchema,
+  productImportBodySchema,
 } from "./admin-catalog-schemas.js";
 import {
   listAdminProducts,
@@ -62,6 +63,7 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
       response: {
         200: openApiSchemas.productResponse,
         400: openApiSchemas.error,
+        409: openApiSchemas.error,
         401: openApiSchemas.error,
         503: openApiSchemas.error,
       },
@@ -79,6 +81,38 @@ export async function registerAdminCatalogRoutes(app: FastifyInstance) {
       metadata: { slug: savedProduct.slug, stock: savedProduct.stock },
     });
 
+    return ok(savedProduct);
+  });
+
+  app.post("/admin/products/import", {
+    schema: {
+      tags: ["Admin"],
+      summary: "Import one reviewed CSV product",
+      description: "Creates a product after CSV review. Optional merchandising fields may be empty. Existing products are never overwritten.",
+      security: [{ bearerAuth: [] }],
+      body: {
+        ...openApiSchemas.adminProductBody,
+        required: [...openApiSchemas.adminProductBody.required, "stock", "status"],
+      },
+      response: {
+        200: openApiSchemas.productResponse,
+        400: openApiSchemas.error,
+        401: openApiSchemas.error,
+        409: openApiSchemas.error,
+        503: openApiSchemas.error,
+      },
+    },
+  }, async (request) => {
+    const product = productImportBodySchema.parse(request.body);
+    const savedProduct = await upsertProductInDatabase(product, { createOnly: true });
+    await recordAuditLog({
+      actorEmail: getAdminActorEmail(request),
+      action: "csv_import",
+      entityType: "product",
+      entityId: savedProduct.id,
+      summary: `Imported product ${savedProduct.name} from reviewed CSV`,
+      metadata: { slug: savedProduct.slug, stock: savedProduct.stock, status: savedProduct.status },
+    });
     return ok(savedProduct);
   });
 

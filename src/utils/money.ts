@@ -14,10 +14,10 @@ export function formatMoney(amount: number, currency: CurrencyCode, exchangeRate
 
 export function formatCurrencyAmount(amount: number, currency: CurrencyCode) {
   const selected = currencies[currency];
-  const maximumFractionDigits = currency === "NGN" ? 0 : 2;
+  const maximumFractionDigits = 2;
 
   return `${selected.symbol}${amount.toLocaleString(undefined, {
     maximumFractionDigits,
-    minimumFractionDigits: currency === "NGN" ? 0 : 0,
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
   })}`;
 }

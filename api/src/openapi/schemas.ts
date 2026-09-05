@@ -220,6 +220,8 @@ const orderSchema = {
     },
     currency: { type: "string", enum: currencyValues },
     subtotal: { type: "number", minimum: 0 },
+    discount: { type: "number", minimum: 0 },
+    promoCode: { type: "string" },
     shipping: { type: "number", minimum: 0 },
     tax: { type: "number", minimum: 0 },
     total: { type: "number", minimum: 0 },
@@ -339,6 +341,7 @@ export const openApiSchemas = {
     type: "object",
     required: ["items"],
     properties: {
+      promoCode: { type: "string", minLength: 1, maxLength: 40 },
       currency: { type: "string", enum: currencyValues },
       items: {
         type: "array",
@@ -375,6 +378,8 @@ export const openApiSchemas = {
     type: "object",
     required: ["customer", "shippingAddress", "items"],
     properties: {
+      promoCode: { type: "string", minLength: 1, maxLength: 40 },
+      expectedTotal: { type: "number", minimum: 0 },
       currency: { type: "string", enum: currencyValues },
       customer: {
         type: "object",

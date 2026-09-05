@@ -86,8 +86,7 @@ export const products: Product[] = [
     material: "18k gold vermeil",
     occasion: ["Evening", "Work", "Wedding Guest"],
     images: [
-      "https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1000&q=85",
-      "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?auto=format&fit=crop&w=1000&q=85"
+      "https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=1000&q=85"
     ],
     description:
       "Light-catching hoops with a softened architectural curve, made for quiet luxury from breakfast meetings to candlelit dinners.",

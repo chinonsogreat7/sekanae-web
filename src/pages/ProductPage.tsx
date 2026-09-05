@@ -1,16 +1,17 @@
-import { ArrowLeft, ArrowRight, ChevronRight, Heart, Maximize2, PackageCheck, Ruler, ShieldCheck, Star, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronRight, Heart, Maximize2, PackageCheck, Ruler, ShieldCheck, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getProduct } from "../api/client";
+import { ApiError, getProduct } from "../api/client";
 import { PageMeta } from "../components/PageMeta";
 import { ProductCard } from "../components/ProductCard";
+import { ProductImage } from "../components/ProductImage";
 import { useStore } from "../context/store-context";
 import { useCatalog } from "../context/CatalogContext";
+import { useDialogFocus } from "../hooks/useDialogFocus";
 import { type Product } from "../data/catalog";
 import { formatMoney } from "../utils/money";
 import { getProductTags, getSwatchClassName, getSwatchStyle } from "../utils/product-display";
 
-const fallbackImage = "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=1000&q=85";
 const recentlyViewedStorageKey = "sekanae_recently_viewed_products";
 
 function uniqueOverlapScore(values: string[], candidateValues: string[], points: number) {
@@ -40,18 +41,25 @@ function readRecentlyViewedProductIds() {
 export function ProductPage() {
   const { slug } = useParams();
   const { currency, exchangeRates, addToCart, toggleWishlist, isWishlisted } = useStore();
-  const { products, error: catalogError } = useCatalog();
-  const fallbackProduct = products.find((item) => item.slug === slug) ?? products[0];
+  const { products, error: catalogError, loading: catalogLoading } = useCatalog();
+  const fallbackProduct = products.find((item) => item.slug === slug);
   const [apiProduct, setApiProduct] = useState<Product | null>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(Boolean(slug));
   const [productError, setProductError] = useState<string | null>(null);
-  const product = apiProduct ?? fallbackProduct;
+  const [resolvedSlug, setResolvedSlug] = useState<string | undefined>();
+  const [notFound, setNotFound] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const isCurrentProduct = resolvedSlug === slug;
+  const absentFromCatalog = !catalogLoading && !catalogError && !fallbackProduct;
+  const unavailable = (isCurrentProduct && notFound) || absentFromCatalog;
+  const product = unavailable || !fallbackProduct ? undefined : (apiProduct?.slug === slug ? apiProduct : fallbackProduct);
   const [selectedColor, setSelectedColor] = useState(product?.colors[0] ?? "Default");
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const galleryRef = useDialogFocus(isGalleryOpen, () => setIsGalleryOpen(false));
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<string[]>(() => readRecentlyViewedProductIds());
-  const productImages = product?.images.length ? product.images : [fallbackImage];
-  const selectedImage = productImages[selectedImageIndex] ?? productImages[0] ?? fallbackImage;
+  const productImages = product?.images ?? [];
+  const selectedImage = productImages[selectedImageIndex] ?? productImages[0];
   const pairings = useMemo(() => {
     if (!product) return [];
     return products
@@ -74,17 +82,22 @@ export function ProductPage() {
 
     let isCurrent = true;
     setIsLoadingProduct(true);
+    setProductError(null);
 
     getProduct(slug)
       .then((nextProduct) => {
         if (!isCurrent) return;
         setApiProduct(nextProduct);
+        setNotFound(false);
+        setResolvedSlug(slug);
         setProductError(null);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!isCurrent) return;
         setApiProduct(null);
-        setProductError("Product details are using saved catalog data while the API is unavailable.");
+        setResolvedSlug(slug);
+        setNotFound(error instanceof ApiError && error.status === 404);
+        setProductError(error instanceof ApiError && error.status === 404 ? null : "We couldn’t refresh this piece. Please try again to check the latest details.");
       })
       .finally(() => {
         if (isCurrent) {
@@ -95,7 +108,7 @@ export function ProductPage() {
     return () => {
       isCurrent = false;
     };
-  }, [slug]);
+  }, [slug, attempt]);
 
   useEffect(() => {
     setSelectedColor(product?.colors[0] ?? "Default");
@@ -143,9 +156,11 @@ export function ProductPage() {
   if (!product) {
     return (
       <div className="page section-pad">
+        <PageMeta title={unavailable ? "Product not found" : "Product details"} path={`/product/${slug ?? ""}`} description="Explore the SEKANAE collection." />
         <div className="empty-state">
-          <h1>Product not found</h1>
-          <p>This piece is no longer available.</p>
+          <h1>{unavailable ? "Product not found" : isLoadingProduct || !isCurrentProduct ? "Loading this piece…" : "This piece couldn’t be loaded"}</h1>
+          <p role="status">{unavailable ? "This piece is no longer available." : isLoadingProduct || !isCurrentProduct ? "Just a moment." : "Please try again in a moment."}</p>
+          {!isLoadingProduct && !unavailable && <button type="button" className="secondary-button" onClick={() => setAttempt((value) => value + 1)}>Try again</button>}
           <Link to="/shop" className="primary-button">Return to shop</Link>
         </div>
       </div>
@@ -171,16 +186,14 @@ export function ProductPage() {
             className="main-product-image-button"
             type="button"
             title="View larger"
+            disabled={!productImages.length}
             onClick={() => setIsGalleryOpen(true)}
             aria-label={`Open ${product.name} image gallery`}
           >
-            <img
+            <ProductImage
               className="main-product-image"
-              src={selectedImage}
+              images={selectedImage ? [selectedImage] : []}
               alt={product.name}
-              onError={(event) => {
-                event.currentTarget.src = fallbackImage;
-              }}
             />
             <span className="gallery-zoom-icon" aria-hidden="true"><Maximize2 size={18} /></span>
           </button>
@@ -193,12 +206,9 @@ export function ProductPage() {
                 aria-pressed={selectedImageIndex === index}
                 onClick={() => setSelectedImageIndex(index)}
               >
-                <img
-                  src={image}
+                <ProductImage
+                  images={[image]}
                   alt=""
-                  onError={(event) => {
-                    event.currentTarget.src = fallbackImage;
-                  }}
                 />
               </button>
             ))}
@@ -207,12 +217,8 @@ export function ProductPage() {
         <div className="product-info-panel">
           <p className="microcopy">{product.collection}</p>
           <h1>{product.name}</h1>
-          {(productError || catalogError) && <p className="api-status">{productError ?? catalogError}</p>}
+          {(productError || catalogError) && <div className="api-status" role="status">{productError ?? catalogError} <button type="button" className="text-link" onClick={() => setAttempt((value) => value + 1)}>Try again</button></div>}
           {isLoadingProduct && <p className="api-status">Refreshing product details.</p>}
-          <div className="rating-row">
-            <span><Star size={16} fill="currentColor" /> {product.rating}</span>
-            <span>{product.reviews} customer reviews</span>
-          </div>
           <p className="product-price">{formatMoney(product.price, currency, exchangeRates)}</p>
           <p>{product.description}</p>
           <div className="color-row">
@@ -229,8 +235,8 @@ export function ProductPage() {
             ))}
           </div>
           <div className="product-cta-row">
-            <button className="primary-button" type="button" onClick={() => addToCart(product.id, selectedColor)}>
-              Add to cart
+            <button className="primary-button" type="button" disabled={product.stock < 1 || isLoadingProduct || !isCurrentProduct} onClick={() => addToCart(product.id, selectedColor)}>
+              {product.stock < 1 ? "Sold out" : "Add to cart"}
             </button>
             <button
               className="secondary-button"
@@ -269,20 +275,6 @@ export function ProductPage() {
         </div>
       </section>
 
-      <section className="section-pad reviews-section">
-        <h2>Customer Notes</h2>
-        <div className="review-grid">
-          <blockquote>
-            <p>"Elegant without feeling delicate. The packaging felt like opening a private invitation."</p>
-            <cite>Amara, Lagos</cite>
-          </blockquote>
-          <blockquote>
-            <p>"A piece I can wear at work and still take straight into dinner."</p>
-            <cite>Claire, London</cite>
-          </blockquote>
-        </div>
-      </section>
-
       <section className="section-pad">
         <h2>Complete the Look</h2>
         <div className="product-grid">
@@ -300,7 +292,7 @@ export function ProductPage() {
       )}
 
       {isGalleryOpen && (
-        <div className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image gallery`}>
+        <div ref={galleryRef} className="gallery-lightbox" role="dialog" aria-modal="true" aria-label={`${product.name} image gallery`}>
           <button className="gallery-close" type="button" onClick={() => setIsGalleryOpen(false)} aria-label="Close gallery">
             <X size={22} />
           </button>
@@ -312,12 +304,9 @@ export function ProductPage() {
           >
             <ArrowLeft size={22} />
           </button>
-          <img
-            src={selectedImage}
+          <ProductImage
+            images={selectedImage ? [selectedImage] : []}
             alt={`${product.name} large view`}
-            onError={(event) => {
-              event.currentTarget.src = fallbackImage;
-            }}
           />
           <button
             className="gallery-nav gallery-nav-next"

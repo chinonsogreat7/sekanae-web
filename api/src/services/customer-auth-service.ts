@@ -13,7 +13,8 @@ import {
   upsertCustomerProfile,
   type CustomerProfile,
 } from "../repositories/customer-auth-repository.js";
-import { baseEmailHtml, escapeHtml, sendEmail } from "./email-service.js";
+import { sendEmail } from "./email-service.js";
+import { buildLoginCodeEmail } from "../emails/templates.js";
 
 export class CustomerAuthServiceError extends Error {
   constructor(
@@ -67,23 +68,11 @@ async function sendLoginCodeEmail(input: {
   code: string;
   purpose: "create" | "sign-in";
 }) {
-  const title = input.purpose === "create" ? "Verify your SEKANAE account" : "Your SEKANAE sign-in code";
-  const body = `
-    <p style="margin:0 0 16px;">Use this one-time code to ${input.purpose === "create" ? "finish creating your SEKANAE account" : "sign in to your SEKANAE account"}.</p>
-    <div style="margin:24px 0;padding:20px;background:#2f2420;color:#fff;text-align:center;">
-      <div style="font-size:11px;letter-spacing:1.8px;text-transform:uppercase;color:#e8b8ae;">Verification code</div>
-      <div style="margin-top:8px;font-size:36px;letter-spacing:8px;font-weight:700;color:#fff;">${escapeHtml(input.code)}</div>
-    </div>
-    <p style="margin:0;">This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
-  `;
-
-  return sendEmail({
-    to: input.email,
-    subject: title,
-    html: baseEmailHtml(title, body),
-    text: `Your SEKANAE verification code is ${input.code}. It expires in 10 minutes.`,
-    template: input.purpose === "create" ? "customer_account_code" : "customer_sign_in_code",
-  });
+  return sendEmail(buildLoginCodeEmail({
+    ...input,
+    ttlSeconds: config.CUSTOMER_LOGIN_CODE_TTL_SECONDS,
+    webOrigin: config.WEB_ORIGIN,
+  }));
 }
 
 export async function requestCustomerLoginCode(input: {

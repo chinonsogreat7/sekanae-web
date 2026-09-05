@@ -100,6 +100,15 @@ export async function createCheckoutSession(orderId: string, email: string) {
     });
   }
 
+  // Use the saved monetary discount: Stripe must charge exactly the reviewed order total.
+  const coupon = order.discount > 0 ? await stripe.coupons.create({
+    amount_off: toCents(order.discount),
+    currency: order.currency.toLowerCase(),
+    duration: "once",
+    name: order.promoCode ?? "Promo discount",
+    metadata: { orderId: order.id },
+  }, { idempotencyKey: `order-promo:${order.id}` }) : undefined;
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: order.customer.email,
@@ -108,6 +117,7 @@ export async function createCheckoutSession(orderId: string, email: string) {
       orderId: order.id,
     },
     line_items: lineItems,
+    ...(coupon ? { discounts: [{ coupon: coupon.id }] } : {}),
     success_url: config.STRIPE_SUCCESS_URL,
     cancel_url: config.STRIPE_CANCEL_URL,
   });
@@ -140,7 +150,7 @@ export async function confirmCheckoutSession(sessionId: string) {
     throw new PaymentServiceError("CHECKOUT_SESSION_NOT_FOUND", "Checkout session is not linked to an order.", 404);
   }
 
-  if (session.payment_status !== "paid") {
+  if (session.payment_status !== "paid" && !(session.payment_status === "no_payment_required" && session.amount_total === 0)) {
     throw new PaymentServiceError("CHECKOUT_SESSION_NOT_PAID", "Checkout payment is not confirmed yet.", 409);
   }
 
@@ -184,7 +194,7 @@ export async function handleStripeWebhook(rawBody: Buffer, signature: string | u
     const session = event.data.object as Stripe.Checkout.Session;
     const orderId = session.metadata?.orderId;
 
-    if (orderId && session.payment_status === "paid") {
+    if (orderId && (session.payment_status === "paid" || (session.payment_status === "no_payment_required" && session.amount_total === 0))) {
       const result = await completeStripePaymentInDatabase({
         eventId: event.id,
         eventType: event.type,

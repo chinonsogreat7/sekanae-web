@@ -3,12 +3,19 @@ import { Link } from "react-router-dom";
 import { ProductCard } from "../components/ProductCard";
 import { PageMeta } from "../components/PageMeta";
 import { SectionHeading } from "../components/SectionHeading";
-import { collections, products } from "../data/catalog";
+import { collections } from "../data/catalog";
+import { useCatalog } from "../context/CatalogContext";
 import { journalPosts } from "../data/editorial";
-import { getProductTags } from "../utils/product-display";
+import { CatalogFeedback } from "../components/CatalogFeedback";
+import { ProductImage } from "../components/ProductImage";
 
 export function HomePage() {
-  const newArrivals = products.filter((product) => getProductTags(product).length).slice(0, 5);
+  const { products, error, loading, retry } = useCatalog();
+  const featuredProduct = products.find((product) => product.category === "Jewelry") ?? products[0];
+  const newArrivals = [...products].sort((a, b) => Number(Boolean(b.isNew)) - Number(Boolean(a.isNew))).slice(0, 5);
+  const categories = ["Jewelry", "Handbags", "Scarves", "Travel Accessories", "Leather Goods"]
+    .map((title) => ({ title, product: products.find((product) => product.category === title) }))
+    .filter(({ product }) => Boolean(product));
 
   return (
     <div className="page boutique-home">
@@ -17,7 +24,7 @@ export function HomePage() {
         path="/"
         description="SEKANAE is a refined accessories maison for modern international women, offering jewelry, handbags, scarves, travel accessories, gifts, and Bridal Atelier previews."
       />
-      <section className="hero-section">
+      <section className={`hero-section${featuredProduct ? "" : " hero-text-only"}`}>
         <div className="hero-copy">
           <h1>Luxury Accessories for Women of the World</h1>
           <p>
@@ -33,32 +40,26 @@ export function HomePage() {
             </Link>
           </div>
         </div>
-        <div className="hero-media" aria-label="SEKANAE luxury accessories editorial">
-          <img
-            src="https://images.unsplash.com/photo-1502716119720-b23a93e5fe1b?auto=format&fit=crop&w=1400&q=88"
-            alt="Elegant woman carrying luxury accessories while traveling"
+        {featuredProduct && <div className="hero-media" aria-label="SEKANAE luxury accessories editorial">
+          <ProductImage
+            images={featuredProduct.images}
+            alt={featuredProduct.name}
             decoding="async"
             fetchPriority="high"
           />
-        </div>
+        </div>}
       </section>
 
-      <section className="section-pad">
+      {categories.length > 0 && <section className="section-pad" aria-label="Shop by category">
         <div className="category-grid boutique-category-grid">
-          {[
-            ["Jewelry", "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=900&q=85"],
-            ["Handbags", "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=85"],
-            ["Scarves", "https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&fit=crop&w=900&q=85"],
-            ["Travel Accessories", "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=85"],
-            ["Gift Shop", "https://images.unsplash.com/photo-1512909006721-3d6018887383?auto=format&fit=crop&w=900&q=85"],
-          ].map(([title, image]) => (
+          {categories.map(({ title, product }) => (
             <Link to={`/shop?category=${encodeURIComponent(title)}`} className="category-tile" key={title}>
-              <img src={image} alt={`${title} from SEKANAE`} loading="lazy" />
+              <ProductImage images={product!.images} alt={title} loading="lazy" />
               <span>{title}<MoveRight size={14} strokeWidth={1.4} aria-hidden="true" /></span>
             </Link>
           ))}
         </div>
-      </section>
+      </section>}
 
       <section className="section-pad product-band">
         <SectionHeading
@@ -68,6 +69,7 @@ export function HomePage() {
             View all <ArrowRight size={16} />
           </Link>
         </SectionHeading>
+        <CatalogFeedback loading={loading} error={error} total={products.length} matches={newArrivals.length} retry={retry} />
         <div className="product-grid home-arrivals-grid">
           {newArrivals.map((product) => (
             <ProductCard key={product.id} product={product} />

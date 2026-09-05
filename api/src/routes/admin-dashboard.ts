@@ -1,3 +1,4 @@
+import { lowStockThreshold } from "../../../packages/admin/src/workflows.js";
 import type { FastifyInstance } from "fastify";
 import { requireAdmin } from "../auth/admin.js";
 import { ok } from "../http.js";
@@ -35,11 +36,11 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance) {
           coalesce((select count(*)::text from customer_emails), '0') as customer_count,
           coalesce((
             select count(*)::text
-            from inventory i
-            join products p on p.id = i.product_id
+            from products p
+            left join inventory i on p.id = i.product_id
             where p.active = true
               and p.status = 'published'
-              and i.quantity <= 5
+              and coalesce(i.quantity, 0) <= ${lowStockThreshold}
           ), '0') as low_stock_count,
           coalesce((select count(*)::text from newsletter_subscribers where status = 'subscribed'), '0') as newsletter_count
       `),
@@ -55,6 +56,7 @@ export async function registerAdminDashboardRoutes(app: FastifyInstance) {
         left join inventory i on i.product_id = p.id
         where p.active = true
           and p.status = 'published'
+          and coalesce(i.quantity, 0) <= ${lowStockThreshold}
         order by coalesce(i.quantity, 0) asc, p.name asc
         limit 8
       `),

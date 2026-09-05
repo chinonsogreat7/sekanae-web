@@ -27,6 +27,24 @@ export const productBodySchema = z.object({
   status: z.enum(["draft", "published"]).default("published"),
 });
 
+// CSV imports need only name, category, price, stock and an explicit status.
+// Missing merchandising facts stay empty rather than becoming invented copy.
+export const productImportBodySchema = productBodySchema.extend({
+  price: z.number().finite().min(0).max(21474836.47).refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 0.000001, "Price must have at most two decimal places."),
+  stock: z.number().int().min(0).max(2147483647),
+  status: z.enum(["draft", "published"]),
+  colors: z.array(z.string().min(1)).default([]),
+  material: z.string().default(""),
+  occasion: z.array(z.string().min(1)).default([]),
+  images: z.array(z.string().url()).default([]),
+  details: z.object({
+    materials: z.string().default(""),
+    dimensions: z.string().default(""),
+    care: z.string().default(""),
+    shipping: z.string().default(""),
+  }),
+});
+
 export const collectionBodySchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
